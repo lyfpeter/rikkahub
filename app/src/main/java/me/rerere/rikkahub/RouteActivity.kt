@@ -137,6 +137,9 @@ import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
+import me.rerere.rikkahub.ui.pages.auth.LyfclawLoginPage
+import me.rerere.rikkahub.ui.pages.auth.LyfclawRegisterPage
+import me.rerere.rikkahub.ui.pages.auth.LyfclawAccountPage
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openUsageAccessSettings
@@ -596,6 +599,42 @@ class RouteActivity : ComponentActivity() {
                             entry<Screen.Stats> {
                                 StatsPage()
                             }
+
+                            // T6: lyfclaw 认证页面
+                            entry<Screen.LyfclawLogin> {
+                                LyfclawLoginPage(
+                                    onLoginSuccess = {
+                                        // 登录成功后回到聊天页
+                                        backStack.clear()
+                                        backStack.add(Screen.Chat())
+                                    },
+                                    onNavigateToRegister = {
+                                        backStack.add(Screen.LyfclawRegister)
+                                    },
+                                )
+                            }
+
+                            entry<Screen.LyfclawRegister> {
+                                LyfclawRegisterPage(
+                                    onRegisterSuccess = {
+                                        backStack.clear()
+                                        backStack.add(Screen.Chat())
+                                    },
+                                    onNavigateToLogin = {
+                                        backStack.removeLastOrNull()
+                                    },
+                                )
+                            }
+
+                            entry<Screen.LyfclawAccount> {
+                                LyfclawAccountPage(
+                                    onPasswordChanged = {
+                                        // 改密后清除 token，回到登录页
+                                        backStack.clear()
+                                        backStack.add(Screen.LyfclawLogin)
+                                    },
+                                )
+                            }
                         }
                     )
                     if (BuildConfig.DEBUG) {
@@ -803,6 +842,16 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Workspaces : Screen
+
+    // T6: lyfclaw 认证页面
+    @Serializable
+    data object LyfclawLogin : Screen
+
+    @Serializable
+    data object LyfclawRegister : Screen
+
+    @Serializable
+    data object LyfclawAccount : Screen
 
     @Serializable
     data class WorkspaceDetail(val id: String) : Screen

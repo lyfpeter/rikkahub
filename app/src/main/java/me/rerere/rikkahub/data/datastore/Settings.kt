@@ -83,7 +83,13 @@ data class Settings(
     val webServerLocalhostOnly: Boolean = false,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val sponsorAlertDismissedAt: Int = 0,
+    // T6: lyfclaw 后端对接配置
+    val lyfclawBaseUrl: String = "",
+    val lyfclawToken: String? = null,
+    val lyfclawUsername: String = "",
 ) {
+    /** 是否已连接 lyfclaw 后端（用于 ChatService 分流判断） */
+    val isLyfclawEnabled: Boolean get() = lyfclawBaseUrl.isNotBlank() && lyfclawToken != null
     companion object {
         // 构造一个用于初始化的settings, 但它不能用于保存，防止使用初始值存储
         fun dummy() = Settings(init = true)

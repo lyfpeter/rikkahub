@@ -39,6 +39,9 @@ import me.rerere.rikkahub.data.remote.SponsorAPI
 import me.rerere.rikkahub.data.sync.BackupManager
 import me.rerere.rikkahub.data.sync.S3Sync
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
+import me.rerere.rikkahub.data.remote.LyfclawAuthClient
+import me.rerere.rikkahub.data.remote.AuthInterceptor
+import me.rerere.rikkahub.service.LyfclawChatService
 import me.rerere.rikkahub.service.memoryDreamKeepAlive
 import me.rerere.search.SearchService
 import okhttp3.MediaType.Companion.toMediaType
@@ -285,6 +288,12 @@ val dataSourceModule = module {
             }
         }
     }
+
+    // T6: lyfclaw 认证客户端 + 拦截器
+    single { LyfclawAuthClient(get()) }
+    single { AuthInterceptor(get()) }
+    // T7: lyfclaw 对话服务（使用 OkHttp streaming）
+    single { LyfclawChatService(get(), get()) }
 
     single {
         S3Sync(

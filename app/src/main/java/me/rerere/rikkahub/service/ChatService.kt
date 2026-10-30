@@ -114,6 +114,8 @@ class ChatService(
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
     private val folderRepository: FolderRepository,
+    // T7: lyfclaw 后端对接（可选，为 null 时走本地 AgentLoop）
+    private val lyfclawChatService: LyfclawChatService? = null,
 ) {
     /** 一轮生成的结果 */
     private sealed interface TurnResult {
@@ -445,7 +447,15 @@ class ChatService(
                 session.submittingMessage = null
 
                 // 开始补全
-                val result = if (queued.answer) runTurn(session) else null
+                // T7: lyfclaw 分流 — 已配置 lyfclaw 后端时走 SSE 流式，否则走本地 AgentLoop
+                val result = if (queued.answer) {
+                    val settings = settingsStore.settingsFlow.value
+                    if (settings.isLyfclawEnabled && lyfclawChatService != null) {
+                        runLyfclawTurn(session, processedContent, settings.lyfclawUsername.ifBlank { "mobile-user" })
+                    } else {
+                        runTurn(session)
+                    }
+                } else null
 
                 queued.reply?.completeWith(runCatching {
                     check(result != TurnResult.Failed) { context.getString(R.string.chat_page_voice_generation_failed) }
@@ -739,6 +749,108 @@ class ChatService(
     private suspend fun finishInterruptedPendingTools(session: ConversationSession) {
         session.tryUpdate { it.cancelInterruptedTools() }
         session.flush()
+    }
+
+    /**
+     * T7: lyfclaw 后端对话轮次。
+     *
+     * 把用户消息发到 lyfclaw /api/app/chat/direct/stream，解析 SSE 事件流，
+     * 将回复文本增量更新到 session 的 assistant 消息中。
+     * Agent 循环/工具执行/记忆管理全部由后端负责。
+     */
+    private suspend fun runLyfclawTurn(
+        session: ConversationSession,
+        userContent: List<me.rerere.ai.ui.UIMessagePart>,
+        botLabel: String,
+    ): TurnResult {
+        val text = userContent.filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>().joinToString("") { it.text }
+        val convId = session.state.value.title.ifBlank { null }
+
+        try {
+            // 创建 assistant 消息占位
+            val assistantId = me.rerere.ai.ui.UIMessageId.generate()
+            session.update {
+                it.copy(
+                    messageNodes = it.messageNodes + me.rerere.ai.ui.UIMessage(
+                        id = assistantId,
+                        role = me.rerere.ai.ui.MessageRole.ASSISTANT,
+                        parts = listOf(me.rerere.ai.ui.UIMessagePart.Text("")),
+                    ).toMessageNode(),
+                )
+            }
+
+            val flow = lyfclawChatService!!.sendMessage(botLabel, text, convId)
+            val accumulatedText = StringBuilder()
+            flow.collect { event ->
+                when (event) {
+                    is LyfclawSseEvent.Meta -> {
+                        // 记录 conversation_id（后续用于取消等）
+                    }
+                    is LyfclawSseEvent.Delta -> {
+                        // T7: 逐 token 增量更新 assistant 消息
+                        accumulatedText.append(event.text)
+                        val currentText = accumulatedText.toString()
+                        session.tryUpdate { conv ->
+                            val nodes = conv.messageNodes.toMutableList()
+                            val lastNode = nodes.lastOrNull()
+                            if (lastNode != null) {
+                                val msgs = lastNode.messages.toMutableList()
+                                val lastMsg = msgs.lastOrNull()
+                                if (lastMsg != null && lastMsg.role == me.rerere.ai.ui.MessageRole.ASSISTANT) {
+                                    msgs[msgs.lastIndex] = lastMsg.copy(
+                                        parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(currentText)),
+                                    )
+                                }
+                                nodes[nodes.lastIndex] = lastNode.copy(messages = msgs)
+                            }
+                            conv.copy(messageNodes = nodes)
+                        }
+                    }
+                    is LyfclawSseEvent.Tool -> {
+                        // T7: 工具进度事件（当前阶段忽略，后续可展示工具卡片）
+                    }
+                    is LyfclawSseEvent.NodeUpdate -> {
+                        // T7: 增量节点更新（当前阶段由 Delta 驱动渲染，忽略 node_update）
+                    }
+                    is LyfclawSseEvent.Done -> {
+                        // 最终文本写入 assistant 消息（优先用 done.text，否则用累积文本）
+                        val finalText = if (event.text.isNotBlank()) event.text else accumulatedText.toString()
+                        session.tryUpdate { conv ->
+                            val nodes = conv.messageNodes.toMutableList()
+                            val lastNode = nodes.lastOrNull()
+                            if (lastNode != null) {
+                                val msgs = lastNode.messages.toMutableList()
+                                val lastMsg = msgs.lastOrNull()
+                                if (lastMsg != null && lastMsg.role == me.rerere.ai.ui.MessageRole.ASSISTANT) {
+                                    msgs[msgs.lastIndex] = lastMsg.copy(
+                                        parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(finalText)),
+                                    )
+                                }
+                                nodes[nodes.lastIndex] = lastNode.copy(messages = msgs)
+                            }
+                            conv.copy(messageNodes = nodes)
+                        }
+                        session.flush()
+                    }
+                    is LyfclawSseEvent.Error -> {
+                        reportFailure(session, Exception(event.message), R.string.error_title_send_message)
+                        return@collect
+                    }
+                    is LyfclawSseEvent.Cancelled -> {
+                        session.flush()
+                        return@collect
+                    }
+                    is LyfclawSseEvent.Snapshot -> {
+                        // 全量快照（当前阶段忽略）
+                    }
+                }
+            }
+            return TurnResult.Finished(me.rerere.ai.agent.AgentFinishReason.Completed)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            reportFailure(session, e, R.string.error_title_send_message)
+            return TurnResult.Failed
+        }
     }
 
     // ---- 生成标题 ----
