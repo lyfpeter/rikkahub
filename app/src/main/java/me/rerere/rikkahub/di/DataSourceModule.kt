@@ -217,6 +217,7 @@ val dataSourceModule = module {
                     chain.proceed(request)
                 }
             }
+            .addInterceptor(get<AuthInterceptor>())
             .addNetworkInterceptor(RequestLoggingInterceptor())
             .addInterceptor(AIRequestInterceptor())
             .addInterceptor(HttpLoggingInterceptor().apply {
@@ -273,7 +274,7 @@ val dataSourceModule = module {
 
     // T6: lyfclaw 认证客户端 + 拦截器
     single { LyfclawAuthClient(get()) }
-    single { AuthInterceptor(get()) }
+    single { AuthInterceptor(get(), get()) }
     // T7: lyfclaw 对话服务（使用 OkHttp streaming）
     single { LyfclawChatService(get(), get()) }
 
