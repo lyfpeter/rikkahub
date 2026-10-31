@@ -3,15 +3,12 @@ package me.rerere.rikkahub.data.remote
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.Interceptor
 import okhttp3.Response
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * OkHttp interceptor: 自动注入 lyfclaw Bearer token 到 lyfclaw 后端请求。
  * 仅当请求 URL 以 settings.lyfclawBaseUrl 开头时生效。
  */
-@Singleton
-class AuthInterceptor @Inject constructor(
+class AuthInterceptor(
     private val settingsStore: SettingsStore,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {

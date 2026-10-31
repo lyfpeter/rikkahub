@@ -3,7 +3,6 @@ package me.rerere.rikkahub.ui.pages.history;
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Pin
 import me.rerere.hugeicons.stroke.PinOff
-import me.rerere.hugeicons.stroke.GlobalSearch
 import me.rerere.hugeicons.stroke.Delete01
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.SwipeToDelete
@@ -69,16 +67,6 @@ fun HistoryPage(vm: HistoryVM = koinViewModel()) {
                     BackButton()
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            navController.navigate(Screen.MessageSearch)
-                        }
-                    ) {
-                        Icon(
-                            HugeIcons.GlobalSearch,
-                            contentDescription = stringResource(R.string.history_page_search_messages)
-                        )
-                    }
                     IconButton(
                         onClick = {
                             showDeleteAllDialog = true

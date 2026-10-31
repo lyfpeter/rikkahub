@@ -30,7 +30,6 @@ import me.rerere.ai.agent.RetryAttempt
 import me.rerere.ai.agent.runAgent
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.BuiltInTools
-import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
@@ -106,7 +105,6 @@ class ChatService(
     private val memoryConsolidationScheduler: MemoryConsolidationScheduler,
     private val translationHandler: TranslationHandler,
     private val metaGenerator: ConversationMetaGenerator,
-    val mcpManager: McpManager,
     private val filesManager: FilesManager,
     private val folderRepository: FolderRepository,
     // T7: lyfclaw 后端对接（可选，为 null 时走本地 AgentLoop）
@@ -258,7 +256,7 @@ class ChatService(
         )
     }
 
-    /** 持有会话引用并确保已加载后执行 [block]；[createIfMissing] 为 false 时数据库里没有就抛 NotFoundException */
+    /** 持有会话引用并确保已加载后执行 [block]；[createIfMissing] 为 false 时数据库里没有就抛异常 */
     private suspend fun <T> withLoadedSession(
         conversationId: Uuid,
         createIfMissing: Boolean = true,
@@ -267,7 +265,7 @@ class ChatService(
         session.initialize(
             load = { loadConversation(conversationId) },
             create = {
-                if (!createIfMissing) throw NotFoundException("Conversation not found")
+                if (!createIfMissing) throw IllegalStateException("Conversation not found")
                 newConversation(conversationId)
             },
         )
@@ -450,7 +448,9 @@ class ChatService(
                     } else {
                         runTurn(session)
                     }
-                } else null
+                } else {
+                    null
+                }
 
                 queued.reply?.completeWith(runCatching {
                     check(result != TurnResult.Failed) { context.getString(R.string.chat_page_voice_generation_failed) }
@@ -625,7 +625,6 @@ class ChatService(
             } else {
                 turn.model.displayName
             }
-            warnIfToolsUnavailable(turn, conversationId)
 
             val (request, hooks) = requestFactory.createAgent(turn, history, session.processingStatus)
             var finishReason: AgentFinishReason? = null
@@ -683,15 +682,6 @@ class ChatService(
         } catch (e: CancellationException) {
             appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
             throw e
-        } catch (e: InvalidMcpServerNamesException) {
-            session.messageQueue.pause()
-            addError(
-                error = IllegalStateException(
-                    context.getString(R.string.error_mcp_invalid_server_name, e.names.joinToString(", "))
-                ),
-                conversationId = conversationId,
-            )
-            return TurnResult.Failed
         } catch (e: Exception) {
             // 兜底取消 Live Update 通知（生成开始前失败时上面的 finally 不会执行）
             appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
@@ -701,20 +691,6 @@ class ChatService(
             Logging.log(TAG, "runTurn: $e")
             Logging.log(TAG, e.stackTraceToString())
             return TurnResult.Failed
-        }
-    }
-
-    // 模型不支持工具调用时，搜索和 MCP 工具都不会生效，提醒一下
-    private fun warnIfToolsUnavailable(turn: ChatTurnContext, conversationId: Uuid) {
-        if (ModelAbility.TOOL in turn.model.abilities) return
-        if (shouldUseExternalWebSearch(turn.assistant, turn.model) ||
-            mcpManager.getAllAvailableTools(turn.assistant).isNotEmpty()
-        ) {
-            addError(
-                IllegalStateException(context.getString(R.string.tools_warning)),
-                conversationId,
-                title = context.getString(R.string.error_title_tool_unavailable)
-            )
         }
     }
 
@@ -763,12 +739,12 @@ class ChatService(
 
         try {
             // 创建 assistant 消息占位
-            val assistantId = me.rerere.ai.ui.UIMessageId.generate()
+            val assistantId = Uuid.random()
             session.update {
                 it.copy(
                     messageNodes = it.messageNodes + me.rerere.ai.ui.UIMessage(
                         id = assistantId,
-                        role = me.rerere.ai.ui.MessageRole.ASSISTANT,
+                        role = MessageRole.ASSISTANT,
                         parts = listOf(me.rerere.ai.ui.UIMessagePart.Text("")),
                     ).toMessageNode(),
                 )
@@ -791,7 +767,7 @@ class ChatService(
                             if (lastNode != null) {
                                 val msgs = lastNode.messages.toMutableList()
                                 val lastMsg = msgs.lastOrNull()
-                                if (lastMsg != null && lastMsg.role == me.rerere.ai.ui.MessageRole.ASSISTANT) {
+                                if (lastMsg != null && lastMsg.role == MessageRole.ASSISTANT) {
                                     msgs[msgs.lastIndex] = lastMsg.copy(
                                         parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(currentText)),
                                     )
@@ -816,7 +792,7 @@ class ChatService(
                             if (lastNode != null) {
                                 val msgs = lastNode.messages.toMutableList()
                                 val lastMsg = msgs.lastOrNull()
-                                if (lastMsg != null && lastMsg.role == me.rerere.ai.ui.MessageRole.ASSISTANT) {
+                                if (lastMsg != null && lastMsg.role == MessageRole.ASSISTANT) {
                                     msgs[msgs.lastIndex] = lastMsg.copy(
                                         parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(finalText)),
                                     )
@@ -1295,7 +1271,7 @@ class ChatService(
         val source = withLoadedSession(conversationId) { it.state.value }
         val existingTitles = conversationRepo.getTitlesOfAssistant(source.assistantId)
         val fork = source.fork(messageId, existingTitles, copyFile = ::copyChatFile)
-            ?: throw NotFoundException("Message not found")
+            ?: throw IllegalStateException("Message not found")
         // 新会话直接落库，打开时再从数据库加载
         val forkConversation = conversationStore.prepareWrite()(fork)
         conversationRepo.insertConversation(forkConversation)
@@ -1313,9 +1289,9 @@ class ChatService(
     ) {
         mutate(conversationId) { conversation ->
             val targetNode = conversation.messageNodes.firstOrNull { it.id == nodeId }
-                ?: throw NotFoundException("Message node not found")
+                ?: throw IllegalStateException("Message node not found")
             if (selectIndex !in targetNode.messages.indices) {
-                throw BadRequestException("Invalid selectIndex")
+                throw IllegalArgumentException("Invalid selectIndex")
             }
             if (targetNode.selectIndex == selectIndex) return@mutate conversation
             conversation.selectBranch(nodeId, selectIndex)
@@ -1335,7 +1311,7 @@ class ChatService(
     ) {
         mutate(conversationId) { conversation ->
             conversation.deleteMessage(messageId)
-                ?: if (failIfMissing) throw NotFoundException("Message not found") else conversation
+                ?: if (failIfMissing) throw IllegalStateException("Message not found") else conversation
         }
     }
 

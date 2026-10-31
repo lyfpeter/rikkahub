@@ -72,8 +72,6 @@ import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
-import me.rerere.rikkahub.ui.components.ai.SearchMode
-import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
 import me.rerere.rikkahub.ui.components.ai.rememberChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -285,7 +283,6 @@ private fun ChatPageContent(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
-    val workspaceRepository: WorkspaceRepository = koinInject()
 
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
@@ -297,18 +294,6 @@ private fun ChatPageContent(
     )
     val allowAudioVideoAttachments =
         currentChatModel?.findProvider(setting.providers) is ProviderSetting.Google
-
-    val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
-        assistant.workspaceId?.let { workspaceId ->
-            listOf(
-                WorkspaceCompletionProvider(
-                    workspaceId = workspaceId.toString(),
-                    repository = workspaceRepository,
-                    currentCwd = conversation.workspaceCwd,
-                )
-            )
-        }.orEmpty()
-    }
 
     TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
@@ -356,7 +341,6 @@ private fun ChatPageContent(
                     assistant = assistant,
                     chatModel = currentChatModel,
                     hazeState = hazeState,
-                    completionProviders = completionProviders,
                     onCancelClick = {
                         vm.stopGeneration()
                     },
@@ -519,19 +503,8 @@ private fun ChatFilesPickerSheet(
             state = inputState,
             assistant = assistant,
             chatModel = chatModel,
-            mcpManager = vm.mcpManager,
             onCompressContext = vm::handleCompressContext,
             onUpdateAssistant = vm::updateAssistant,
-            onUpdateWorkspaceCwd = vm::updateWorkspaceCwd,
-            onUpdateSearchMode = { mode ->
-                vm.updateSearch(
-                    enableWebSearch = mode == SearchMode.LOCAL,
-                    builtInSearch = mode == SearchMode.BUILT_IN,
-                )
-            },
-            onUpdateSearchService = { index ->
-                vm.updateSettings { it.copy(searchServiceSelected = index) }
-            },
             showCompressDialog = showCompressDialog,
             onShowCompressDialogChange = { showCompressDialog = it },
             onDismiss = { dismissAll() },

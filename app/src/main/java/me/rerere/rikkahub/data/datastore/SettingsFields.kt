@@ -121,23 +121,12 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         json(ASSISTANTS, Settings::assistants) { copy(assistants = it) },
         json(ASSISTANT_TAGS, Settings::assistantTags) { copy(assistantTags = it) },
 
-        // 搜索
-        json(SEARCH_SERVICES, Settings::searchServices) { copy(searchServices = it) },
-        json(SEARCH_COMMON, Settings::searchCommonOptions) { copy(searchCommonOptions = it) },
-        plain(SEARCH_SELECTED, Settings::searchServiceSelected) { copy(searchServiceSelected = it) },
-
-        // MCP
-        json(MCP_SERVERS, Settings::mcpServers) { copy(mcpServers = it) },
-
         // WebDAV
         json(WEBDAV_CONFIG, Settings::webDavConfig) { copy(webDavConfig = it) },
 
         // S3
         json(S3_CONFIG, Settings::s3Config) { copy(s3Config = it) },
         json(UPLOAD_S3_CONFIG, Settings::uploadS3Config) { copy(uploadS3Config = it) },
-
-        // 媒体生成
-        json(MEDIA_GENERATION_PROVIDERS, Settings::mediaGenerationProviders) { copy(mediaGenerationProviders = it) },
 
         // TTS
         json(TTS_PROVIDERS, Settings::ttsProviders) { copy(ttsProviders = it) },
@@ -155,13 +144,6 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
             decode = { Uuid.parse(it) },
         ),
 
-        // Web Server
-        plain(WEB_SERVER_ENABLED, Settings::webServerEnabled) { copy(webServerEnabled = it) },
-        plain(WEB_SERVER_PORT, Settings::webServerPort) { copy(webServerPort = it) },
-        plain(WEB_SERVER_JWT_ENABLED, Settings::webServerJwtEnabled) { copy(webServerJwtEnabled = it) },
-        plain(WEB_SERVER_ACCESS_PASSWORD, Settings::webServerAccessPassword) { copy(webServerAccessPassword = it) },
-        plain(WEB_SERVER_LOCALHOST_ONLY, Settings::webServerLocalhostOnly) { copy(webServerLocalhostOnly = it) },
-
         // 提示词注入
         json(MODE_INJECTIONS, Settings::modeInjections) { copy(modeInjections = it) },
         json(LOREBOOKS, Settings::lorebooks) { copy(lorebooks = it) },
@@ -172,6 +154,18 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
 
         // 赞助提醒
         plain(SPONSOR_ALERT_DISMISSED_AT, Settings::sponsorAlertDismissedAt) { copy(sponsorAlertDismissedAt = it) },
+
+        // lyfclaw 后端
+        plain(LYFCLAW_BASE_URL, Settings::lyfclawBaseUrl) { copy(lyfclawBaseUrl = it) },
+        SettingsField(
+            LYFCLAW_TOKEN,
+            Settings::lyfclawToken,
+            { copy(lyfclawToken = it) },
+            // 未登录时不存这个 key
+            encode = { it },
+            decode = { it },
+        ),
+        plain(LYFCLAW_USERNAME, Settings::lyfclawUsername) { copy(lyfclawUsername = it) },
     )
 }
 

@@ -228,11 +228,6 @@ fun ChatMessage(
             }
         }
 
-        EditedFilesList(
-            parts = message.parts,
-            assistant = assistant,
-        )
-
         ProvideTextStyle(textStyle) {
             ChatMessageNerdLine(message = message)
         }

@@ -69,7 +69,6 @@ fun AssistantBasicPage(id: String) {
     val assistant by vm.assistant.collectAsStateWithLifecycle()
     val providers by vm.providers.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
-    val workspaces by vm.workspaces.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -93,7 +92,6 @@ fun AssistantBasicPage(id: String) {
             assistant = assistant,
             providers = providers,
             tags = tags,
-            workspaces = workspaces,
             onUpdate = { vm.update(it) },
             vm = vm
         )
@@ -106,7 +104,6 @@ internal fun AssistantBasicContent(
     assistant: Assistant,
     providers: List<me.rerere.ai.provider.ProviderSetting>,
     tags: List<DataTag>,
-    workspaces: List<WorkspaceEntity>,
     onUpdate: (Assistant) -> Unit,
     vm: AssistantDetailVM
 ) {
@@ -177,27 +174,6 @@ internal fun AssistantBasicContent(
                     tags = tags,
                     onValueChange = { tagIds, tagList ->
                         vm.updateTags(tagIds, tagList)
-                    },
-                )
-            }
-            formItem(
-                headlineContent = { Text(stringResource(R.string.assistant_page_workspace)) },
-                supportingContent = { Text(stringResource(R.string.assistant_page_workspace_desc)) },
-            ) {
-                val selectedWorkspace = workspaces.find { it.id == assistant.workspaceId?.toString() }
-                Select(
-                    options = listOf<WorkspaceEntity?>(null) + workspaces,
-                    selectedOption = selectedWorkspace,
-                    onOptionSelected = { workspace ->
-                        onUpdate(
-                            assistant.copy(
-                                workspaceId = workspace?.id?.let { Uuid.parse(it) }
-                            )
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    optionToString = { workspace ->
-                        workspace?.name ?: stringResource(R.string.workspace_no_binding)
                     },
                 )
             }

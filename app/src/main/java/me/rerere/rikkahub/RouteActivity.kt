@@ -65,7 +65,6 @@ import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
 import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
-import me.rerere.rikkahub.service.MediaCreationForegroundService
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.ui.components.ui.TTSController
 import me.rerere.rikkahub.ui.context.LocalASRState
@@ -84,7 +83,6 @@ import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantLocalToolPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMcpPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantPromptPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantRequestPage
@@ -132,7 +130,6 @@ import kotlin.uuid.Uuid
 
 private const val TAG = "RouteActivity"
 private const val ACTION_TRANSLATE = "me.rerere.rikkahub.action.TRANSLATE"
-private const val ACTION_MEDIA_CREATION = "me.rerere.rikkahub.action.MEDIA_CREATION"
 private const val EXTRA_CONVERSATION_ID = "conversationId"
 
 /** 打开指定会话的聊天页 */
@@ -145,7 +142,6 @@ fun conversationIntent(context: Context, conversationId: String): Intent =
 class RouteActivity : ComponentActivity() {
     private val okHttpClient by inject<OkHttpClient>()
     private val settingsStore by inject<SettingsStore>()
-    private val mediaCreationRepository by inject<MediaCreationRepository>()
     private var navStack: MutableList<NavKey>? = null
     private val pendingIntents = ArrayDeque<Intent>()
 
@@ -223,10 +219,6 @@ class RouteActivity : ComponentActivity() {
         }
         val destination = when (intent.action) {
             ACTION_TRANSLATE -> Screen.Translator
-            ACTION_MEDIA_CREATION -> {
-                openNewMediaCreation(backStack)
-                null
-            }
             Intent.ACTION_SEND -> Screen.ShareHandler(
                 text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty(),
                 streamUri = intent.getStringExtra(Intent.EXTRA_STREAM),
@@ -234,26 +226,11 @@ class RouteActivity : ComponentActivity() {
             Intent.ACTION_PROCESS_TEXT -> Screen.ShareHandler(
                 text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty(),
             )
-            else -> mediaCreationDestination(intent)
-                ?: intent.getStringExtra(EXTRA_CONVERSATION_ID)?.let { Screen.Chat(it) }
+            else -> intent.getStringExtra(EXTRA_CONVERSATION_ID)?.let { Screen.Chat(it) }
         }
         if (destination != null && backStack.lastOrNull() != destination) {
             backStack.add(destination)
         }
-    }
-
-    // 快捷方式没有指定会话，打开一个空会话
-    private fun openNewMediaCreation(backStack: MutableList<NavKey>) {
-        lifecycleScope.launch {
-            val destination = Screen.MediaCreation(mediaCreationRepository.newSession().id.toString())
-            if (backStack.lastOrNull() != destination) backStack.add(destination)
-        }
-    }
-
-    // 媒体创作的通知带着会话 ID，点击后直接打开那个会话
-    private fun mediaCreationDestination(intent: Intent): Screen? {
-        val sessionId = intent.getStringExtra(MediaCreationForegroundService.EXTRA_MEDIA_SESSION_ID) ?: return null
-        return runCatching { Uuid.parse(sessionId) }.getOrNull()?.let { Screen.MediaCreation(it.toString()) }
     }
 
     @OptIn(ExperimentalComposeUiApi::class)
@@ -391,10 +368,6 @@ class RouteActivity : ComponentActivity() {
                                 AssistantRequestPage(key.id)
                             }
 
-                            entry<Screen.AssistantMcp> { key ->
-                                AssistantMcpPage(key.id)
-                            }
-
                             entry<Screen.AssistantLocalTool> { key ->
                                 AssistantLocalToolPage(key.id)
                             }
@@ -413,23 +386,6 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.Backup> {
                                 BackupPage()
-                            }
-
-                            entry<Screen.ImageGen> {
-                                ImageGenPage()
-                            }
-
-                            entry<Screen.MediaCreationSessions> {
-                                MediaCreationSessionsPage()
-                            }
-
-                            // 从会话列表展开（容器变换），页面本身只做淡入淡出，避免和平移打架
-                            entry<Screen.MediaCreation>(
-                                metadata = NavDisplay.transitionSpec { fadeIn() togetherWith fadeOut() }
-                                    + NavDisplay.popTransitionSpec { fadeIn() togetherWith fadeOut() }
-                                    + NavDisplay.predictivePopTransitionSpec { fadeIn() togetherWith fadeOut() }
-                            ) { key ->
-                                MediaCreationPage(key.id)
                             }
 
                             entry<Screen.WebView> { key ->
@@ -481,33 +437,8 @@ class RouteActivity : ComponentActivity() {
                                 SettingAboutPage()
                             }
 
-                            entry<Screen.SettingSearch> {
-                                SettingSearchPage()
-                            }
-
-                            entry<Screen.SettingSearchDetail> { key ->
-                                val id = Uuid.parse(key.serviceId)
-                                SettingSearchDetailPage(id)
-                            }
-
                             entry<Screen.SettingSpeech> {
                                 SettingSpeechPage()
-                            }
-
-                            entry<Screen.SettingMedia> {
-                                SettingMediaPage()
-                            }
-
-                            entry<Screen.SettingMediaProviderDetail> { key ->
-                                SettingMediaProviderDetailPage(id = Uuid.parse(key.providerId))
-                            }
-
-                            entry<Screen.SettingMcp> {
-                                SettingMcpPage()
-                            }
-
-                            entry<Screen.SettingMcpDetail> { key ->
-                                SettingMcpDetailPage(id = Uuid.parse(key.serverId))
                             }
 
                             entry<Screen.SettingDonate> {
@@ -516,10 +447,6 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.SettingFiles> {
                                 SettingFilesPage()
-                            }
-
-                            entry<Screen.SettingWeb> {
-                                SettingWebPage()
                             }
 
                             entry<Screen.Debug> {
@@ -546,36 +473,8 @@ class RouteActivity : ComponentActivity() {
                                 SkillsPage()
                             }
 
-                            entry<Screen.Workspaces> {
-                                WorkspacePage()
-                            }
-
-                            entry<Screen.WorkspaceDetail> { key ->
-                                WorkspaceDetailPage(key.id)
-                            }
-
-                            entry<Screen.WorkspaceTerminal> { key ->
-                                WorkspaceTerminalPage(key.id)
-                            }
-
-                            entry<Screen.WorkspaceSshEditor> { key ->
-                                WorkspaceSshEditorPage(key.id)
-                            }
-
-                            entry<Screen.WorkspaceFileEditor> { key ->
-                                WorkspaceFileEditorPage(
-                                    id = key.id,
-                                    area = WorkspaceStorageArea.valueOf(key.area),
-                                    path = key.path,
-                                )
-                            }
-
                             entry<Screen.SkillDetail> { key ->
                                 SkillDetailPage(skillName = key.skillName)
-                            }
-
-                            entry<Screen.MessageSearch> {
-                                SearchPage()
                             }
 
                             entry<Screen.Stats> {
@@ -588,7 +487,7 @@ class RouteActivity : ComponentActivity() {
                                     onLoginSuccess = {
                                         // 登录成功后回到聊天页
                                         backStack.clear()
-                                        backStack.add(Screen.Chat())
+                                        backStack.add(Screen.Chat(Uuid.random().toString()))
                                     },
                                     onNavigateToRegister = {
                                         backStack.add(Screen.LyfclawRegister)
@@ -600,7 +499,7 @@ class RouteActivity : ComponentActivity() {
                                 LyfclawRegisterPage(
                                     onRegisterSuccess = {
                                         backStack.clear()
-                                        backStack.add(Screen.Chat())
+                                        backStack.add(Screen.Chat(Uuid.random().toString()))
                                     },
                                     onNavigateToLogin = {
                                         backStack.removeLastOrNull()
@@ -674,10 +573,10 @@ class RouteActivity : ComponentActivity() {
 sealed interface Screen : NavKey {
     @Serializable
     data class Chat(
-        val id: String,
-        val text: String? = null,
-        val files: List<String> = emptyList(),
-        val nodeId: String? = null
+    val id: String,
+    val text: String? = null,
+    val files: List<String> = emptyList(),
+    val nodeId: String? = null
     ) : Screen
 
     @Serializable
@@ -712,9 +611,6 @@ sealed interface Screen : NavKey {
     data class AssistantRequest(val id: String) : Screen
 
     @Serializable
-    data class AssistantMcp(val id: String) : Screen
-
-    @Serializable
     data class AssistantLocalTool(val id: String) : Screen
 
     @Serializable
@@ -728,15 +624,6 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Backup : Screen
-
-    @Serializable
-    data object ImageGen : Screen
-
-    @Serializable
-    data object MediaCreationSessions : Screen
-
-    @Serializable
-    data class MediaCreation(val id: String) : Screen
 
     @Serializable
     data class WebView(val url: String = "", val contentId: String = "") : Screen
@@ -775,34 +662,13 @@ sealed interface Screen : NavKey {
     data object SettingAbout : Screen
 
     @Serializable
-    data object SettingSearch : Screen
-
-    @Serializable
-    data class SettingSearchDetail(val serviceId: String) : Screen
-
-    @Serializable
     data object SettingSpeech : Screen
-
-    @Serializable
-    data object SettingMedia : Screen
-
-    @Serializable
-    data class SettingMediaProviderDetail(val providerId: String) : Screen
-
-    @Serializable
-    data object SettingMcp : Screen
-
-    @Serializable
-    data class SettingMcpDetail(val serverId: String) : Screen
 
     @Serializable
     data object SettingDonate : Screen
 
     @Serializable
     data object SettingFiles : Screen
-
-    @Serializable
-    data object SettingWeb : Screen
 
     @Serializable
     data object Debug : Screen
@@ -822,9 +688,6 @@ sealed interface Screen : NavKey {
     @Serializable
     data object Skills : Screen
 
-    @Serializable
-    data object Workspaces : Screen
-
     // T6: lyfclaw 认证页面
     @Serializable
     data object LyfclawLogin : Screen
@@ -836,23 +699,7 @@ sealed interface Screen : NavKey {
     data object LyfclawAccount : Screen
 
     @Serializable
-    data class WorkspaceDetail(val id: String) : Screen
-
-    @Serializable
-    data class WorkspaceTerminal(val id: String) : Screen
-
-    /** [id] 为 null 时新建 */
-    @Serializable
-    data class WorkspaceSshEditor(val id: String? = null) : Screen
-
-    @Serializable
-    data class WorkspaceFileEditor(val id: String, val area: String, val path: String) : Screen
-
-    @Serializable
     data class SkillDetail(val skillName: String) : Screen
-
-    @Serializable
-    data object MessageSearch : Screen
 
     @Serializable
     data object Stats : Screen

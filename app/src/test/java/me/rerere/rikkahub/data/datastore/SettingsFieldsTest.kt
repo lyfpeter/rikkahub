@@ -7,8 +7,6 @@ import kotlinx.serialization.descriptors.elementNames
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.asr.ASRProviderSetting
-import me.rerere.mediagen.provider.MediaGenerationProviderSetting
-import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
@@ -16,8 +14,6 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.theme.CustomTheme
-import me.rerere.search.SearchCommonOptions
-import me.rerere.search.SearchServiceOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -53,13 +49,11 @@ class SettingsFieldsTest {
 
         assertEquals(STORED_KEYS, stored.keys)
         assertEquals(false, stored["dynamic_color"])
-        assertEquals(9090, stored["web_server_port"])
         assertEquals(1.5f, stored["default_tts_playback_speed"])
         assertEquals("title", stored["title_prompt"])
         assertEquals("00000000-0000-0000-0000-000000000001", stored["chat_model"])
         assertEquals("LOW", stored["fast_model_reasoning_level"])
         assertEquals("""[{"id":"00000000-0000-0000-0000-000000000007","name":"tag"}]""", stored["assistant_tags"])
-        assertEquals("""{"resultSize":3}""", stored["search_common"])
     }
 
     @Test
@@ -75,7 +69,6 @@ class SettingsFieldsTest {
         assertEquals(null, settings.selectedASRProviderId)
         assertEquals(null, settings.memoryModelId)
         assertEquals(true, settings.dynamicColor)
-        assertEquals(8080, settings.webServerPort)
     }
 
     @Test
@@ -139,17 +132,9 @@ private val SAMPLE = Settings(
     providers = listOf(ProviderSetting.OpenAI(id = id(31), name = "Provider")),
     assistants = listOf(Assistant(id = id(20), name = "Assistant")),
     assistantTags = listOf(Tag(id = id(7), name = "tag")),
-    searchServices = listOf(
-        SearchServiceOptions.BingLocalOptions(id = id(21)),
-        SearchServiceOptions.BingLocalOptions(id = id(22)),
-    ),
-    searchCommonOptions = SearchCommonOptions(resultSize = 3),
-    searchServiceSelected = 1,
-    mcpServers = listOf(McpServerConfig.SseTransportServer(id = id(8), url = "https://example.com/sse")),
     webDavConfig = WebDavConfig(url = "https://dav.example.com"),
     s3Config = S3Config(bucket = "backup"),
     uploadS3Config = S3Config(bucket = "upload"),
-    mediaGenerationProviders = listOf(MediaGenerationProviderSetting.OpenAI(id = id(9))),
     ttsProviders = DEFAULT_TTS_PROVIDERS.take(1),
     selectedTTSProviderId = id(10),
     defaultTTSPlaybackSpeed = 1.5f,
@@ -158,13 +143,11 @@ private val SAMPLE = Settings(
     modeInjections = listOf(PromptInjection.ModeInjection(id = id(14), name = "mode")),
     lorebooks = listOf(Lorebook(id = id(12), name = "lorebook")),
     quickMessages = listOf(QuickMessage(id = id(13), title = "hi")),
-    webServerEnabled = true,
-    webServerPort = 9090,
-    webServerJwtEnabled = true,
-    webServerAccessPassword = "secret",
-    webServerLocalhostOnly = true,
     backupReminderConfig = BackupReminderConfig(enabled = true),
     sponsorAlertDismissedAt = 7,
+    lyfclawBaseUrl = "https://lyfclaw.example.com",
+    lyfclawToken = "token",
+    lyfclawUsername = "user",
 )
 
 private val STORED_KEYS = setOf(
@@ -195,27 +178,20 @@ private val STORED_KEYS = setOf(
     "select_assistant",
     "assistants",
     "assistant_tags",
-    "search_services",
-    "search_common",
-    "search_selected",
-    "mcp_servers",
     "webdav_config",
     "s3_config",
     "upload_s3_config",
-    "media_generation_providers",
     "tts_providers",
     "selected_tts_provider",
     "default_tts_playback_speed",
     "asr_providers",
     "selected_asr_provider",
-    "web_server_enabled",
-    "web_server_port",
-    "web_server_jwt_enabled",
-    "web_server_access_password",
-    "web_server_localhost_only",
     "mode_injections",
     "lorebooks",
     "quick_messages",
     "backup_reminder_config",
     "sponsor_alert_dismissed_at",
+    "lyfclaw_base_url",
+    "lyfclaw_token",
+    "lyfclaw_username",
 )

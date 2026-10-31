@@ -51,8 +51,6 @@ private const val TAG = "RikkaHubApp"
 
 const val CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID = "chat_completed"
 const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
-const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
-const val MEDIA_CREATION_NOTIFICATION_CHANNEL_ID = "media_creation"
 const val MEMORY_DREAM_NOTIFICATION_CHANNEL_ID = "memory_dream"
 
 class RikkaHubApp : Application() {
@@ -90,12 +88,6 @@ class RikkaHubApp : Application() {
         // cleanup stale tool output files
         cleanupToolOutputs()
 
-        // cleanup workspace temp dirs (proot + rootfs /tmp)
-        cleanupWorkspaceTempDirs()
-
-        // check workspace integrity (mark workspaces with missing files as broken after backup restore)
-        checkWorkspaceIntegrity()
-
         // sync upload files to DB
         syncManagedFiles()
 
@@ -105,27 +97,12 @@ class RikkaHubApp : Application() {
         // Load models.dev data for model capability matching, then refresh it in background
         updateModelsDev()
 
-        // Start WebServer if enabled in settings
-        startWebServerIfEnabled()
-
-        // Resume media generations interrupted by the last process death
-        resumeMediaCreations()
         resumeMemoryConsolidation()
 
         // Increment launch count
         incrementLaunchCount()
 
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
-    }
-
-    private fun resumeMediaCreations() {
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching {
-                get<MediaCreationService>().resumePending()
-            }.onFailure {
-                Log.e(TAG, "resumeMediaCreations failed", it)
-            }
-        }
     }
 
     private fun resumeMemoryConsolidation() {
@@ -151,26 +128,6 @@ class RikkaHubApp : Application() {
                 Log.i(TAG, "incrementLaunchCount: $count")
             }.onFailure {
                 Log.e(TAG, "incrementLaunchCount failed", it)
-            }
-        }
-    }
-
-    private fun cleanupWorkspaceTempDirs() {
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching {
-                get<WorkspaceManager>().cleanupAllTempDirs()
-            }.onFailure {
-                Log.e(TAG, "cleanupWorkspaceTempDirs failed", it)
-            }
-        }
-    }
-
-    private fun checkWorkspaceIntegrity() {
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching {
-                get<WorkspaceRepository>().checkIntegrity()
-            }.onFailure {
-                Log.e(TAG, "checkWorkspaceIntegrity failed", it)
             }
         }
     }
@@ -217,44 +174,6 @@ class RikkaHubApp : Application() {
         }
     }
 
-    private fun startWebServerIfEnabled() {
-        get<AppScope>().launch {
-            runCatching {
-                delay(500)
-                val settings = get<SettingsStore>().awaitLoaded()
-                if (settings.webServerEnabled) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(
-                            this@RikkaHubApp,
-                            android.Manifest.permission.POST_NOTIFICATIONS
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        Log.w(TAG, "startWebServerIfEnabled: notification permission not granted, skipping")
-                        return@launch
-                    }
-                    if (Build.VERSION.SDK_INT >= 37 &&
-                        !settings.webServerLocalhostOnly &&
-                        ContextCompat.checkSelfPermission(
-                            this@RikkaHubApp,
-                            android.Manifest.permission.ACCESS_LOCAL_NETWORK
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        Log.w(TAG, "startWebServerIfEnabled: local network permission not granted, skipping")
-                        return@launch
-                    }
-                    val intent = Intent(this@RikkaHubApp, WebServerService::class.java).apply {
-                        action = WebServerService.ACTION_START
-                        putExtra(WebServerService.EXTRA_PORT, settings.webServerPort)
-                        putExtra(WebServerService.EXTRA_LOCALHOST_ONLY, settings.webServerLocalhostOnly)
-                    }
-                    startForegroundService(intent)
-                }
-            }.onFailure {
-                Log.e(TAG, "startWebServerIfEnabled failed", it)
-            }
-        }
-    }
-
     private fun createNotificationChannel() {
         val notificationManager = NotificationManagerCompat.from(this)
         val chatCompletedChannel = NotificationChannelCompat
@@ -276,21 +195,6 @@ class RikkaHubApp : Application() {
             .setVibrationEnabled(false)
             .build()
         notificationManager.createNotificationChannel(chatLiveUpdateChannel)
-
-        val webServerChannel = NotificationChannelCompat
-            .Builder(WEB_SERVER_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-            .setName(getString(R.string.notification_channel_web_server))
-            .setVibrationEnabled(false)
-            .setShowBadge(false)
-            .build()
-        notificationManager.createNotificationChannel(webServerChannel)
-
-        val mediaCreationChannel = NotificationChannelCompat
-            .Builder(MEDIA_CREATION_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
-            .setName(getString(R.string.media_creation_title))
-            .build()
-        notificationManager.createNotificationChannel(mediaCreationChannel)
-
         val memoryDreamChannel = NotificationChannelCompat
             .Builder(MEMORY_DREAM_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
             .setName(getString(R.string.memory_dream_title))
@@ -303,7 +207,6 @@ class RikkaHubApp : Application() {
     override fun onTerminate() {
         super.onTerminate()
         get<AppScope>().cancel()
-        stopService(Intent(this, WebServerService::class.java))
     }
 }
 

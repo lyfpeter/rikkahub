@@ -99,10 +99,6 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.service.MessageQueueState
 import me.rerere.rikkahub.service.QueuedMessage
-import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
-import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
-import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionList
-import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionProvider
 import me.rerere.rikkahub.ui.components.ui.KeepScreenOn
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionRecordAudio
@@ -127,7 +123,6 @@ fun ChatInput(
     chatModel: Model?,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
-    completionProviders: List<ChatCompletionProvider> = emptyList(),
     onUpdateChatModel: (Model) -> Unit,
     onUpdateAssistant: (Assistant) -> Unit,
     onMoreClick: () -> Unit,
@@ -270,7 +265,6 @@ fun ChatInput(
                     TextInputRow(
                         state = state,
                         assistant = assistant,
-                        completionProviders = completionProviders,
                         onSendMessage = { sendMessage() },
                     )
 
@@ -440,7 +434,6 @@ private fun ActionIconButton(
 private fun TextInputRow(
     state: ChatInputState,
     assistant: Assistant,
-    completionProviders: List<ChatCompletionProvider>,
     onSendMessage: () -> Unit,
 ) {
     val settings = LocalSettings.current
@@ -484,7 +477,6 @@ private fun TextInputRow(
 
         var isFocused by remember { mutableStateOf(false) }
         var isFullScreen by remember { mutableStateOf(false) }
-        var completionList by remember { mutableStateOf<ChatCompletionList?>(null) }
         val receiveContentListener = remember(
             settings.displaySetting.pasteLongTextAsFile, settings.displaySetting.pasteLongTextThreshold
         ) {
@@ -522,54 +514,6 @@ private fun TextInputRow(
             }
         }
 
-        LaunchedEffect(completionProviders, isFocused) {
-            if (!isFocused || completionProviders.isEmpty()) {
-                completionList = null
-                return@LaunchedEffect
-            }
-
-            snapshotFlow {
-                ChatCompletionContext(
-                    text = state.textContent.text.toString(),
-                    selection = state.textContent.selection,
-                )
-            }.collectLatest { context ->
-                val lists = completionProviders.mapNotNull { provider ->
-                    try {
-                        provider.complete(context)
-                            ?.takeIf { it.items.isNotEmpty() }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-                val primary = lists.firstOrNull()
-                completionList = primary?.let { list ->
-                    val mergedItems = lists
-                        .filter { it.replacementRange == list.replacementRange }
-                        .flatMap { it.items }
-                        .distinctBy { it.label to it.insertText }
-                        .sortedWith(
-                            compareByDescending<ChatCompletionItem> { it.sortScore }
-                                .thenBy { it.label.length }
-                                .thenBy { it.label.lowercase() }
-                        )
-                        .take(8)
-                    list.copy(items = mergedItems)
-                }
-            }
-        }
-
-        completionList?.takeIf { it.items.isNotEmpty() }?.let { list ->
-            CompletionPopup(
-                completionList = list,
-                onItemClick = { item ->
-                    state.applyCompletion(list.replacementRange, item)
-                    completionList = null
-                },
-            )
-        }
 
         TextField(
             state = state.textContent,
@@ -638,86 +582,6 @@ private fun TextInputRow(
     }
 }
 
-@Composable
-private fun CompletionPopup(
-    completionList: ChatCompletionList,
-    onItemClick: (ChatCompletionItem) -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 280.dp),
-        shape = RoundedCornerShape(18.dp),
-        tonalElevation = 2.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        ) {
-            items(
-                items = completionList.items,
-                key = { item -> "${item.label}:${item.insertText}" },
-            ) { item ->
-                Surface(
-                    onClick = { onItemClick(item) },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.Transparent,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        item.icon?.let { icon ->
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Text(
-                                text = item.label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            item.detail?.let { detail ->
-                                Text(
-                                    text = detail,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun ChatInputState.applyCompletion(
-    replacementRange: TextRange,
-    item: ChatCompletionItem,
-) {
-    val textLength = textContent.text.length
-    val start = replacementRange.min.coerceIn(0, textLength)
-    val end = replacementRange.max.coerceIn(start, textLength)
-    textContent.edit {
-        replace(start, end, item.insertText)
-        selection = TextRange(start + item.insertText.length)
-    }
-}
 
 @Composable
 private fun QuickMessageButton(

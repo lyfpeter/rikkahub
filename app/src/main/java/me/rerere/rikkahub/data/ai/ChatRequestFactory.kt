@@ -18,6 +18,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
+import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
@@ -73,7 +74,6 @@ class ChatRequestFactory(
     private val chatToolFactory: ChatToolFactory,
     private val memoryRepository: MemoryRepository,
     templateTransformer: TemplateTransformer,
-    workspaceRepository: WorkspaceRepository,
 ) {
     private val inputTransformers: List<InputMessageTransformer> = listOf(
         TimeReminderTransformer,
@@ -82,7 +82,6 @@ class ChatRequestFactory(
         DocumentAsPromptTransformer,
         OcrTransformer,
         templateTransformer,
-        WorkspaceReminderTransformer(workspaceRepository),
     )
 
     private val outputTransformers: List<OutputMessageTransformer> = listOf(
@@ -107,12 +106,7 @@ class ChatRequestFactory(
             conversationSystemPrompt = conversation.customSystemPrompt,
             workspaceCwd = conversation.workspaceCwd,
             memories = if (assistant.enableMemory) memoryRepository.getFiles(assistant.memoryId) else emptyList(),
-            tools = chatToolFactory.createTools(
-                settings = settings,
-                assistant = assistant,
-                model = model,
-                workspaceCwd = conversation.workspaceCwd,
-            ),
+            tools = chatToolFactory.createTools(assistant = assistant),
         )
     }
 

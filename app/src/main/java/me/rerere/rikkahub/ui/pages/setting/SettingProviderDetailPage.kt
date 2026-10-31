@@ -186,7 +186,12 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
             latest.copy(
                 providers = latest.providers.map {
                     if (newProvider.id == it.id) {
-                        newProvider.preserveCredential(it)
+                        // 凭据只由账号登录流程修改，编辑其他字段时保留设置里的最新凭据
+                        if (newProvider is ProviderSetting.Account && it is ProviderSetting.Account) {
+                            newProvider.withCredential(it.credential)
+                        } else {
+                            newProvider
+                        }
                     } else {
                         it
                     }

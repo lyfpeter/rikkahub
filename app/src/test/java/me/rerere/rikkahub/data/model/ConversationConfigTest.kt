@@ -4,7 +4,6 @@ import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.BuiltInTools
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
-import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.datastore.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -38,7 +37,6 @@ class ConversationConfigTest {
         assistants = listOf(assistant),
         chatModelId = modelB.id,
         providers = listOf(ProviderSetting.OpenAI(models = listOf(modelA, modelB))),
-        mcpServers = listOf(McpServerConfig.StreamableHTTPServer(id = mcpServer)),
         modeInjections = listOf(PromptInjection.ModeInjection(id = injection)),
         lorebooks = listOf(Lorebook(id = lorebook)),
     )
@@ -149,11 +147,10 @@ class ConversationConfigTest {
     @Test
     fun `bound conversation drops references to removed items`() {
         val bound = conversation().bindConfig(settings())
-        val emptied = settings().copy(mcpServers = emptyList(), modeInjections = emptyList(), lorebooks = emptyList())
+        val emptied = settings().copy(modeInjections = emptyList(), lorebooks = emptyList())
 
         val resolved = emptied.getAssistantOf(bound)
 
-        assertEquals(emptySet<Uuid>(), resolved.mcpServers)
         assertEquals(emptySet<Uuid>(), resolved.modeInjectionIds)
         assertEquals(emptySet<Uuid>(), resolved.lorebookIds)
     }
@@ -202,7 +199,10 @@ class ConversationConfigTest {
         val bound = conversation().bindConfig(settings()).copy(workspaceCwd = "/workspace/project")
         val assistantView = settings().getAssistantOf(bound)
 
-        val sameWorkspace = bound.withAssistantUpdate(assistantView.copy(reasoningLevel = ReasoningLevel.LOW), settings())
+        val sameWorkspace = bound.withAssistantUpdate(
+            assistantView.copy(reasoningLevel = ReasoningLevel.LOW),
+            settings()
+        )
         val otherWorkspace = bound.withAssistantUpdate(assistantView.copy(workspaceId = Uuid.random()), settings())
 
         assertEquals("/workspace/project", sameWorkspace.workspaceCwd)

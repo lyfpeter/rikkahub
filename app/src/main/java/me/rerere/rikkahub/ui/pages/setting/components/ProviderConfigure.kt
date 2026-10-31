@@ -115,7 +115,7 @@ fun ProviderConfigure(
                 provider = provider,
                 onEdit = onEdit,
                 serviceName = "ChatGPT",
-                plan = provider.credential?.plan?.let { "ChatGPT ${ChatGPTAuth.planDisplayName(it)}" },
+                plan = null,
                 disclaimer = stringResource(R.string.setting_provider_page_chatgpt_disclaimer),
             )
 
@@ -355,7 +355,7 @@ private fun ProviderConfigureOpenAI(
     }
 }
 
-// 账号类提供商：登录状态、用量和说明
+// 账号类提供商：凭据、用量和说明。登录/登出流程已随 oauth 模块移除
 @Composable
 private fun ProviderConfigureAccount(
     provider: ProviderSetting.Account,
@@ -364,70 +364,18 @@ private fun ProviderConfigureAccount(
     plan: String?,
     disclaimer: String,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val accountManager = koinInject<ProviderAccountManager>()
-    val loginStatus by accountManager.loginStatus.collectAsStateWithLifecycle()
-    val status = loginStatus[provider.id]
     val credential = provider.credential
 
     CardGroup {
         nameItem(provider, onEdit)
     }
 
-    CardGroup(title = { Text(stringResource(R.string.setting_provider_page_account)) }) {
-        if (credential != null) {
+    if (credential != null) {
+        CardGroup(title = { Text(stringResource(R.string.setting_provider_page_account)) }) {
             item(
                 leadingContent = { CardGroupIcon(HugeIcons.UserCircle) },
                 supportingContent = plan?.let { { Text(it) } },
                 headlineContent = { Text(credential.email ?: stringResource(R.string.setting_provider_page_signed_in)) },
-            )
-            item(
-                onClick = { scope.launch { accountManager.logout(provider.id) } },
-                leadingContent = {
-                    CardGroupIcon(
-                        icon = HugeIcons.Logout03,
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                },
-                headlineContent = { Text(stringResource(R.string.setting_provider_page_sign_out)) },
-            )
-        } else if (status is AccountLoginStatus.DeviceCode) {
-            item(
-                onClick = { CustomTabsOAuthAuthorizationLauncher.launch(context, status.verificationUrl) },
-                leadingContent = { ContainedLoadingIndicator(modifier = Modifier.size(40.dp)) },
-                overlineContent = { Text(stringResource(R.string.setting_provider_page_device_code_hint)) },
-                supportingContent = { Text(stringResource(R.string.setting_provider_page_device_code_reopen)) },
-                headlineContent = {
-                    Text(
-                        text = status.userCode,
-                        style = MaterialTheme.typography.headlineSmallEmphasized,
-                        fontFamily = JetbrainsMono,
-                    )
-                },
-            )
-            item(
-                onClick = { accountManager.cancelLogin(provider.id) },
-                leadingContent = { CardGroupIcon(HugeIcons.Cancel01) },
-                headlineContent = { Text(stringResource(R.string.cancel)) },
-            )
-        } else if (status == AccountLoginStatus.Authorizing) {
-            item(
-                onClick = { accountManager.cancelLogin(provider.id) },
-                leadingContent = { ContainedLoadingIndicator(modifier = Modifier.size(40.dp)) },
-                supportingContent = { Text(stringResource(R.string.setting_provider_page_waiting_authorization_desc)) },
-                headlineContent = { Text(stringResource(R.string.setting_provider_page_waiting_authorization)) },
-            )
-        } else {
-            item(
-                onClick = { accountManager.startLogin(provider.id, context) },
-                leadingContent = { CardGroupIcon(HugeIcons.Login03) },
-                supportingContent = (status as? AccountLoginStatus.Failed)?.let { failed ->
-                    { Text(failed.message, color = MaterialTheme.colorScheme.error) }
-                },
-                trailingContent = { Icon(HugeIcons.ArrowRight01, contentDescription = null) },
-                headlineContent = { Text(stringResource(R.string.setting_provider_page_sign_in_with, serviceName)) },
             )
         }
     }

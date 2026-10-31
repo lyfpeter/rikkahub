@@ -148,9 +148,6 @@ class ChatVM(
     // 生成完成
     val generationDoneFlow: SharedFlow<Uuid> = chatService.generationDoneFlow
 
-    // MCP管理器
-    val mcpManager = chatService.mcpManager
-
     // 更新设置
     fun updateSettings(fn: (Settings) -> Settings): Job {
         return viewModelScope.launch {
@@ -342,7 +339,7 @@ class ChatVM(
         viewModelScope.launch {
             try {
                 chatService.selectMessageNode(_conversationId, nodeId, selectIndex)
-            } catch (e: ApiException) {
+            } catch (e: Exception) {
                 // 界面上的分支已经过时（比如刚被清理掉），切换不了就算了
                 Log.w(TAG, "selectMessageNode: ${e.message}")
             }

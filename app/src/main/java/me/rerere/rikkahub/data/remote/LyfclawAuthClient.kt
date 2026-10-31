@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.remote
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -8,8 +9,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import javax.inject.Inject
-import javax.inject.Singleton
 
 @Serializable
 data class LyfclawLoginResponse(
@@ -38,11 +37,13 @@ data class LyfclawPasswordRequest(
     val new_password: String,
 )
 
-@Singleton
-class LyfclawAuthClient @Inject constructor(
+class LyfclawAuthClient(
     private val httpClient: HttpClient,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
     suspend fun login(baseUrl: String, username: String, password: String): LyfclawLoginResponse {
         return httpClient.post("$baseUrl/api/app/login") {
             contentType(ContentType.Application.Json)

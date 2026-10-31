@@ -11,7 +11,6 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 
 class SettingVM(
     private val settingsStore: SettingsStore,
-    private val mcpManager: McpManager
 ) :
     ViewModel() {
     // 设置在应用启动时就读进了内存，初始值直接取当前值；

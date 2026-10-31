@@ -75,6 +75,7 @@ import me.rerere.hugeicons.stroke.Stop
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.local.ASK_USER_TOOL_NAME
 import me.rerere.rikkahub.data.model.GenerationPhase
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.ui.drawAppLogo

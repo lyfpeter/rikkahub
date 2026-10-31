@@ -101,7 +101,6 @@ fun Settings.getAssistantOf(conversation: Conversation): Assistant {
     if (conversation.config == null) return assistant
     // 助手自身的失效引用在读取设置时已清理，会话上固定的这份在这里滤掉
     return assistant.copy(
-        mcpServers = assistant.mcpServers.filterTo(mutableSetOf()) { id -> mcpServers.any { it.id == id } },
         modeInjectionIds = assistant.modeInjectionIds
             .filterTo(mutableSetOf()) { id -> modeInjections.any { it.id == id } },
         lorebookIds = assistant.lorebookIds.filterTo(mutableSetOf()) { id -> lorebooks.any { it.id == id } },

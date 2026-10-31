@@ -20,7 +20,9 @@ internal fun Settings.withBuiltInDefaults(): Settings {
                 description = defaultProvider.description,
                 shortDescription = defaultProvider.shortDescription,
             )
-        } else provider
+        } else {
+            provider
+        }
     }.toMutableList()
     val assistants = this.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
     DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
@@ -44,7 +46,6 @@ internal fun Settings.withBuiltInDefaults(): Settings {
 // 去重并清理无效引用
 internal fun Settings.withoutInvalidReferences(): Settings {
     val settings = this
-    val validMcpServerIds = settings.mcpServers.map { it.id }.toSet()
     val validModeInjectionIds = settings.modeInjections.map { it.id }.toSet()
     val validLorebookIds = settings.lorebooks.map { it.id }.toSet()
     val validQuickMessageIds = settings.quickMessages.map { it.id }.toSet()
@@ -56,10 +57,6 @@ internal fun Settings.withoutInvalidReferences(): Settings {
         },
         assistants = settings.assistants.distinctBy { it.id }.map { assistant ->
             assistant.copy(
-                // 过滤掉不存在的 MCP 服务器 ID
-                mcpServers = assistant.mcpServers.filter { serverId ->
-                    serverId in validMcpServerIds
-                }.toSet(),
                 // 过滤掉不存在的模式注入 ID
                 modeInjectionIds = assistant.modeInjectionIds.filter { id ->
                     id in validModeInjectionIds
@@ -86,8 +83,6 @@ internal fun Settings.withoutInvalidReferences(): Settings {
     )
 }
 
-// 把取值收回合法范围，比如删掉搜索服务后选中的下标可能越界
 private fun Settings.withValuesInRange(): Settings = copy(
-    searchServiceSelected = searchServiceSelected.coerceIn(0, (searchServices.size - 1).coerceAtLeast(0)),
     defaultTTSPlaybackSpeed = defaultTTSPlaybackSpeed.coerceIn(0.5f, 2.0f),
 )

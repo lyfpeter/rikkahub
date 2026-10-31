@@ -82,20 +82,13 @@ import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.formatNumber
 import org.koin.compose.koinInject
 
-// 顺序决定切换方向：往后是进入下一级，往前是返回
 private enum class FilesPickerPage {
     MAIN,
-    MCP,
     EXTENSIONS,
-    SEARCH,
-    SEARCH_PROVIDER,
 }
 
 private val FilesPickerPage.parent: FilesPickerPage
-    get() = when (this) {
-        FilesPickerPage.SEARCH_PROVIDER -> FilesPickerPage.SEARCH
-        else -> FilesPickerPage.MAIN
-    }
+    get() = FilesPickerPage.MAIN
 
 @Composable
 internal fun FilesPicker(
@@ -104,12 +97,8 @@ internal fun FilesPicker(
     assistant: Assistant,
     chatModel: Model?,
     state: ChatInputState,
-    mcpManager: McpManager,
     onCompressContext: (additionalPrompt: String, keepRecentMessages: Int) -> Job,
     onUpdateAssistant: (Assistant) -> Unit,
-    onUpdateWorkspaceCwd: (String?) -> Unit,
-    onUpdateSearchMode: (SearchMode) -> Unit,
-    onUpdateSearchService: (Int) -> Unit,
     showCompressDialog: Boolean,
     onShowCompressDialogChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
@@ -124,14 +113,6 @@ internal fun FilesPicker(
     val settings = LocalSettings.current
     val provider = chatModel?.findProvider(providers = settings.providers)
     val navController = LocalNavController.current
-    val workspaceRepository: WorkspaceRepository = koinInject()
-    val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
-
-    val boundWorkspace = remember(workspaces, assistant.workspaceId) {
-        workspaces.find { it.id == assistant.workspaceId?.toString() }
-    }
-    val showCwd = boundWorkspace != null && boundWorkspace.shellStatus == WorkspaceShellStatus.READY.name
-    var showCwdSheet by remember { mutableStateOf(false) }
 
     var page by remember { mutableStateOf(FilesPickerPage.MAIN) }
     // 在子页面时，返回键回到上一级而不是关闭 sheet
@@ -152,39 +133,12 @@ internal fun FilesPicker(
         label = "FilesPickerPage"
     ) { currentPage ->
         when (currentPage) {
-            FilesPickerPage.MCP -> McpPickerPage(
-                assistant = assistant,
-                servers = settings.mcpServers,
-                mcpManager = mcpManager,
-                onUpdateAssistant = onUpdateAssistant,
-                onBack = { page = FilesPickerPage.MAIN },
-            )
-
             FilesPickerPage.EXTENSIONS -> ExtensionPickerPage(
                 assistant = assistant,
                 settings = settings,
                 onUpdateAssistant = onUpdateAssistant,
                 onBack = { page = FilesPickerPage.MAIN },
                 onDismissAll = onDismiss,
-            )
-
-            FilesPickerPage.SEARCH -> SearchPickerPage(
-                enableSearch = assistant.enableWebSearch,
-                settings = settings,
-                model = chatModel,
-                onUpdateSearchMode = onUpdateSearchMode,
-                onSelectProvider = { page = FilesPickerPage.SEARCH_PROVIDER },
-                onBack = { page = FilesPickerPage.MAIN },
-                onDismissAll = onDismiss,
-            )
-
-            FilesPickerPage.SEARCH_PROVIDER -> SearchProviderPicker(
-                settings = settings,
-                onUpdateSearchService = { index ->
-                    onUpdateSearchService(index)
-                    page = FilesPickerPage.SEARCH
-                },
-                onBack = { page = FilesPickerPage.SEARCH },
             )
 
             // 矮屏上放不下时可以滚动，避免底部的压缩对话等入口被挤出屏幕
@@ -213,77 +167,14 @@ internal fun FilesPicker(
                 )
 
                 // 分段列表：各项按显示条件依次占位，首尾项才有大圆角
-                val showWorkspace = workspaces.isNotEmpty()
-                val showMcp = settings.mcpServers.isNotEmpty()
                 // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
                 val showCompress = assistant.contextMessageLimit <= 0
-                val itemCount = 2 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showCompress).count { it }
+                val itemCount = 1 + listOf(showCompress).count { it }
                 var itemIndex = 0
                 Column(
                     verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
                 ) {
-                    SearchPickerListItem(
-                        enableSearch = assistant.enableWebSearch,
-                        settings = settings,
-                        model = chatModel,
-                        shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
-                        onClick = { page = FilesPickerPage.SEARCH },
-                    )
 
-                    if (showWorkspace) {
-                        WorkspacePickerListItem(
-                            assistant = assistant,
-                            workspaces = workspaces,
-                            shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
-                            onUpdateAssistant = onUpdateAssistant,
-                            onNavigateToDetail = { id ->
-                                onDismiss()
-                                navController.navigate(Screen.WorkspaceDetail(id))
-                            },
-                            onNavigateToTerminal = { id ->
-                                onDismiss()
-                                navController.navigate(Screen.WorkspaceTerminal(id))
-                            },
-                            onNavigateToManage = {
-                                onDismiss()
-                                navController.navigate(Screen.Workspaces)
-                            },
-                        )
-
-                        // Workspace CWD
-                        if (showCwd) {
-                            SegmentedListItem(
-                                onClick = { showCwdSheet = true },
-                                shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
-                                leadingContent = {
-                                    Icon(
-                                        imageVector = HugeIcons.Folder01,
-                                        contentDescription = stringResource(R.string.workspace_cwd_select_directory),
-                                    )
-                                },
-                                trailingContent = {
-                                    Icon(HugeIcons.ArrowRight01, contentDescription = null)
-                                },
-                            ) {
-                                Text(
-                                    text = conversation.workspaceCwd ?: boundWorkspace?.workspaceDir().orEmpty(),
-                                    // 路径的末尾更有辨识度，放不下时省略开头
-                                    maxLines = 1,
-                                    overflow = TextOverflow.StartEllipsis,
-                                )
-                            }
-                        }
-                    }
-
-                    if (showMcp) {
-                        McpPickerListItem(
-                            assistant = assistant,
-                            servers = settings.mcpServers,
-                            mcpManager = mcpManager,
-                            shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
-                            onClick = { page = FilesPickerPage.MCP },
-                        )
-                    }
 
                     // Extensions (Quick Messages + Prompt Injections + Skills)
                     val activeCount =
@@ -358,103 +249,12 @@ internal fun FilesPicker(
             }
         }
     }
-
-    if (showCwdSheet && boundWorkspace != null) {
-        WorkspaceCwdPickerSheet(
-            workspaceId = boundWorkspace.id,
-            workspaceDir = boundWorkspace.workspaceDir(),
-            currentCwd = conversation.workspaceCwd,
-            onSelectCwd = { newCwd ->
-                onUpdateWorkspaceCwd(newCwd)
-            },
-            onDismiss = { showCwdSheet = false },
-        )
-    }
-
     // Compress Context Dialog
     if (showCompressDialog) {
         CompressContextDialog(onDismiss = {
             onShowCompressDialogChange(false)
             onDismiss()
         }, onConfirm = onCompressContext)
-    }
-}
-
-@Composable
-private fun WorkspacePickerListItem(
-    assistant: Assistant,
-    workspaces: List<WorkspaceEntity>,
-    shapes: ListItemShapes,
-    onUpdateAssistant: (Assistant) -> Unit,
-    onNavigateToDetail: (String) -> Unit,
-    onNavigateToTerminal: (String) -> Unit,
-    onNavigateToManage: () -> Unit,
-) {
-    var showSheet by remember { mutableStateOf(false) }
-    val boundWorkspace = remember(workspaces, assistant.workspaceId) {
-        workspaces.find { it.id == assistant.workspaceId?.toString() }
-    }
-
-    SegmentedListItem(
-        onClick = { showSheet = true },
-        shapes = shapes,
-        leadingContent = {
-            Icon(
-                imageVector = HugeIcons.Codesandbox,
-                contentDescription = null,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = boundWorkspace?.name ?: stringResource(R.string.assistant_page_workspace_unbound),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        trailingContent = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (boundWorkspace != null) {
-                    IconButton(onClick = { onNavigateToDetail(boundWorkspace.id) }) {
-                        Icon(
-                            imageVector = HugeIcons.Settings02,
-                            contentDescription = stringResource(R.string.workspace_detail),
-                        )
-                    }
-                    if (boundWorkspace.supportsTerminal()) {
-                        IconButton(onClick = { onNavigateToTerminal(boundWorkspace.id) }) {
-                            Icon(
-                                imageVector = HugeIcons.ComputerTerminal01,
-                                contentDescription = stringResource(R.string.workspace_terminal),
-                            )
-                        }
-                    }
-                }
-            }
-        },
-    ) {
-        Text(stringResource(R.string.assistant_page_workspace))
-    }
-
-    if (showSheet) {
-        WorkspaceSelectSheet(
-            assistant = assistant,
-            workspaces = workspaces,
-            onSelect = { workspaceId ->
-                val newId = workspaceId?.let { Uuid.parse(it) }
-                if (newId != assistant.workspaceId) {
-                    // 会话的工作目录随工作区一并重置
-                    onUpdateAssistant(assistant.copy(workspaceId = newId))
-                }
-                showSheet = false
-            },
-            onManage = {
-                showSheet = false
-                onNavigateToManage()
-            },
-            onDismiss = { showSheet = false },
-        )
     }
 }
 

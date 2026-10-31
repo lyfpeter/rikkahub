@@ -9,14 +9,12 @@ import me.rerere.ai.core.TokenUsage
 import me.rerere.rikkahub.data.db.dao.ConversationDAO
 import me.rerere.rikkahub.data.db.dao.FavoriteDAO
 import me.rerere.rikkahub.data.db.dao.FolderDAO
-import me.rerere.rikkahub.data.db.dao.GenMediaDAO
 import me.rerere.rikkahub.data.db.dao.ManagedFileDAO
 import me.rerere.rikkahub.data.db.dao.MemoryConsolidationDAO
 import me.rerere.rikkahub.data.db.dao.MemoryDAO
 import me.rerere.rikkahub.data.db.dao.MessageNodeDAO
 import me.rerere.rikkahub.data.db.dao.TranslationHistoryDAO
 import me.rerere.rikkahub.data.db.dao.UsageRecordDAO
-import me.rerere.rikkahub.data.db.dao.WorkspaceDAO
 import me.rerere.rikkahub.data.db.entity.ConversationEntity
 import me.rerere.rikkahub.data.db.entity.FavoriteEntity
 import me.rerere.rikkahub.data.db.entity.FolderEntity
@@ -30,6 +28,7 @@ import me.rerere.rikkahub.data.db.entity.UsageRecordEntity
 import me.rerere.rikkahub.data.db.migrations.Migration_16_17
 import me.rerere.rikkahub.data.db.migrations.Migration_22_23
 import me.rerere.rikkahub.data.db.migrations.Migration_28_29
+import me.rerere.rikkahub.data.db.migrations.Migration_32_33
 import me.rerere.rikkahub.data.db.migrations.Migration_8_9
 import me.rerere.rikkahub.utils.JsonInstant
 
@@ -42,15 +41,11 @@ import me.rerere.rikkahub.utils.JsonInstant
         MessageNodeEntity::class,
         ManagedFileEntity::class,
         FavoriteEntity::class,
-        WorkspaceEntity::class,
         FolderEntity::class,
-        MediaCreationSessionEntity::class,
-        MediaCreationNodeEntity::class,
-        MediaCreationRecordEntity::class,
         TranslationHistoryEntity::class,
         UsageRecordEntity::class,
     ],
-    version = 32,
+    version = 33,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -76,6 +71,7 @@ import me.rerere.rikkahub.utils.JsonInstant
         AutoMigration(from = 28, to = 29, spec = Migration_28_29::class),
         AutoMigration(from = 29, to = 30),
         AutoMigration(from = 31, to = 32),
+        AutoMigration(from = 32, to = 33, spec = Migration_32_33::class),
     ]
 )
 @TypeConverters(TokenUsageConverter::class)
@@ -86,19 +82,13 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun memoryConsolidationDao(): MemoryConsolidationDAO
 
-    abstract fun genMediaDao(): GenMediaDAO
-
     abstract fun messageNodeDao(): MessageNodeDAO
 
     abstract fun managedFileDao(): ManagedFileDAO
 
     abstract fun favoriteDao(): FavoriteDAO
 
-    abstract fun workspaceDao(): WorkspaceDAO
-
     abstract fun folderDao(): FolderDAO
-
-    abstract fun mediaCreationDao(): MediaCreationDAO
 
     abstract fun translationHistoryDao(): TranslationHistoryDAO
 

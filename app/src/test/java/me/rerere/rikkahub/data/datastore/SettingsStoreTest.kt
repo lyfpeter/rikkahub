@@ -77,16 +77,16 @@ class SettingsStoreTest {
     @Test
     fun `concurrent updates are all applied`() = runBlocking {
         val store = open().store
-        store.update { it.copy(webServerPort = 0) }
+        store.update { it.copy(sponsorAlertDismissedAt = 0) }
 
         (1..8).map {
             launch(Dispatchers.Default) {
-                repeat(50) { store.update { it.copy(webServerPort = it.webServerPort + 1) } }
+                repeat(50) { store.update { it.copy(sponsorAlertDismissedAt = it.sponsorAlertDismissedAt + 1) } }
             }
         }.joinAll()
 
-        assertEquals(400, store.settingsFlow.value.webServerPort)
-        assertEquals(400, reopened().webServerPort)
+        assertEquals(400, store.settingsFlow.value.sponsorAlertDismissedAt)
+        assertEquals(400, reopened().sponsorAlertDismissedAt)
     }
 
     @Test
@@ -97,17 +97,18 @@ class SettingsStoreTest {
         val gate = CompletableDeferred<Unit>()
         opened.disk.writeGate = gate
 
-        val first = launch(start = CoroutineStart.UNDISPATCHED) { store.update { it.copy(webServerPort = 9001) } }
+        val first =
+            launch(start = CoroutineStart.UNDISPATCHED) { store.update { it.copy(sponsorAlertDismissedAt = 9001) } }
         while (opened.disk.writes.get() == 0) delay(1)
-        val rest = (9002..9050).map { port ->
-            launch(start = CoroutineStart.UNDISPATCHED) { store.update { it.copy(webServerPort = port) } }
+        val rest = (9002..9050).map { value ->
+            launch(start = CoroutineStart.UNDISPATCHED) { store.update { it.copy(sponsorAlertDismissedAt = value) } }
         }
         gate.complete(Unit)
         (rest + first).joinAll()
 
         assertEquals(2, opened.disk.writes.get())
-        assertEquals(9050, store.settingsFlow.value.webServerPort)
-        assertEquals(9050, reopened().webServerPort)
+        assertEquals(9050, store.settingsFlow.value.sponsorAlertDismissedAt)
+        assertEquals(9050, reopened().sponsorAlertDismissedAt)
     }
 
     @Test
@@ -123,20 +124,6 @@ class SettingsStoreTest {
         val stored = opened.disk.data.first()
         assertEquals("second", stored[SettingsStore.TITLE_PROMPT])
         assertEquals("on disk", stored[SettingsStore.OCR_PROMPT])
-    }
-
-    @Test
-    fun `values repaired while loading are written back by the next update`() = runBlocking {
-        // 盘上留着一个越界的下标，读盘时会被收回 0。它必须跟着下一次写入落盘，
-        // 否则以后搜索服务变多、这个下标重新落在范围内时，重启后选中的服务会悄悄变掉
-        open().disk.edit { it[SettingsStore.SEARCH_SELECTED] = 3 }
-        val opened = open()
-        val store = opened.store
-        assertEquals(0, store.awaitLoaded().searchServiceSelected)
-
-        store.update { it.copy(titlePrompt = "anything") }
-
-        assertEquals(0, opened.disk.data.first()[SettingsStore.SEARCH_SELECTED])
     }
 
     @Test
@@ -186,13 +173,12 @@ class SettingsStoreTest {
         val store = open().store
 
         store.update {
-            it.copy(providers = emptyList(), favoriteModels = listOf(Uuid.random()), searchServiceSelected = 5)
+            it.copy(providers = emptyList(), favoriteModels = listOf(Uuid.random()))
         }
 
         val settings = store.settingsFlow.value
         assertEquals(DEFAULT_PROVIDERS.map { it.id }, settings.providers.map { it.id })
         assertEquals(emptyList<Uuid>(), settings.favoriteModels)
-        assertEquals(0, settings.searchServiceSelected)
     }
 
     @Test

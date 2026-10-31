@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.service
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
@@ -20,8 +21,6 @@ import okhttp3.Response
 import okio.Buffer
 import okio.BufferedSource
 import java.io.IOException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 @Serializable
 data class LyfclawChatRequest(
@@ -38,12 +37,14 @@ data class LyfclawChatRequest(
  * lyfclaw 模式下跳过本地 AgentLoop / ChatRequestFactory / ChatToolFactory，
  * Agent 循环、工具执行、记忆管理全部由后端负责。
  */
-@Singleton
-class LyfclawChatService @Inject constructor(
+class LyfclawChatService(
     private val okHttpClient: OkHttpClient,
     private val settingsStore: SettingsStore,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     /**
      * 发送消息到 lyfclaw 后端，返回 SSE 事件流。
@@ -125,10 +126,13 @@ class LyfclawChatService @Inject constructor(
                                 // 空行 = 事件边界
                                 val data = dataBuilder.toString().trim()
                                 if (data.isNotBlank()) {
-                                    val event = parseSseEvent(currentEvent.ifBlank { data.substringBefore("\"type\":\"", "").let {
-                                        // data 里带 type 字段时从 JSON 解析，否则用 event 名
-                                        ""
-                                    } }, data)
+                                    val event =
+                                        parseSseEvent(currentEvent.ifBlank {
+                                            data.substringBefore("\"type\":\"", "").let {
+                                                // data 里带 type 字段时从 JSON 解析，否则用 event 名
+                                                ""
+                                            }
+                                        }, data)
                                     if (event != null) trySend(event)
                                 }
                                 currentEvent = ""
@@ -137,7 +141,7 @@ class LyfclawChatService @Inject constructor(
                         }
                     }
                 } catch (e: Exception) {
-                    if (!isClosed) {
+                    if (!isClosedForSend) {
                         trySend(LyfclawSseEvent.Error(e.message ?: "SSE parse error"))
                     }
                 } finally {

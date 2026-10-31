@@ -183,6 +183,11 @@ class SettingsStore internal constructor(
         // 赞助提醒
         val SPONSOR_ALERT_DISMISSED_AT = intPreferencesKey("sponsor_alert_dismissed_at")
 
+        // lyfclaw 后端
+        val LYFCLAW_BASE_URL = stringPreferencesKey("lyfclaw_base_url")
+        val LYFCLAW_TOKEN = stringPreferencesKey("lyfclaw_token")
+        val LYFCLAW_USERNAME = stringPreferencesKey("lyfclaw_username")
+
         // Uses the same DataStore singleton without starting settings flows or requiring Koin.
         internal suspend fun restoreBeforeInitialization(context: Context, settings: Settings, launchCount: Int) {
             require(!settings.init) { "Cannot restore uninitialized settings" }

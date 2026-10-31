@@ -9,6 +9,7 @@ import io.ktor.http.HttpHeaders
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import me.rerere.ai.provider.AccountCredentialProvider
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.rikkahub.AppScope
@@ -26,6 +27,8 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.db.AppDatabaseFactory
 import me.rerere.rikkahub.data.db.fts.MessageFtsManager
+import me.rerere.rikkahub.data.remote.AuthInterceptor
+import me.rerere.rikkahub.data.remote.LyfclawAuthClient
 import me.rerere.rikkahub.data.remote.ModelsDevUpdater
 import me.rerere.rikkahub.data.remote.RemoteFileStore
 import me.rerere.rikkahub.data.remote.RikkaHubAPI
@@ -36,8 +39,6 @@ import me.rerere.rikkahub.data.remote.SponsorAPI
 import me.rerere.rikkahub.data.sync.BackupManager
 import me.rerere.rikkahub.data.sync.S3Sync
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
-import me.rerere.rikkahub.data.remote.LyfclawAuthClient
-import me.rerere.rikkahub.data.remote.AuthInterceptor
 import me.rerere.rikkahub.service.LyfclawChatService
 import me.rerere.rikkahub.service.memoryDreamKeepAlive
 import okhttp3.MediaType.Companion.toMediaType
@@ -93,10 +94,6 @@ val dataSourceModule = module {
     }
 
     single {
-        get<AppDatabase>().genMediaDao()
-    }
-
-    single {
         get<AppDatabase>().messageNodeDao()
     }
 
@@ -109,15 +106,7 @@ val dataSourceModule = module {
     }
 
     single {
-        get<AppDatabase>().workspaceDao()
-    }
-
-    single {
         get<AppDatabase>().folderDao()
-    }
-
-    single {
-        get<AppDatabase>().mediaCreationDao()
     }
 
     single {
@@ -135,8 +124,6 @@ val dataSourceModule = module {
     single {
         MessageFtsManager(get())
     }
-
-    single { McpManager(settingsStore = get(), appScope = get(), filesManager = get()) }
 
     single {
         MemoryConsolidator(
@@ -237,7 +224,7 @@ val dataSourceModule = module {
                 level = HttpLoggingInterceptor.Level.HEADERS
             })
             .build()
-        client.also { SearchService.init(it, get()) }
+        client
     }
 
     single {
@@ -248,16 +235,15 @@ val dataSourceModule = module {
         ModelsDevUpdater(context = get(), client = get())
     }
 
-    single {
-        ProviderAccountManager(
-            settingsStore = get(),
-            appScope = get(),
-            client = get(),
-        )
+    // 账号类提供商（ChatGPT / Grok）的凭据来自设置里已存的 token；登录/刷新流程已随 oauth 模块移除
+    single<AccountCredentialProvider> {
+        AccountCredentialProvider { setting, _ ->
+            setting.credential ?: throw IllegalStateException("账号未登录：${setting.name}")
+        }
     }
 
     single {
-        ProviderManager(client = get(), context = get(), accountCredentials = get<ProviderAccountManager>())
+        ProviderManager(client = get(), context = get(), accountCredentials = get())
     }
 
     single { BackupManager(context = get(), database = get(), settingsStore = get(), json = get()) }
@@ -305,10 +291,6 @@ val dataSourceModule = module {
             httpClient = get(),
             scope = get<AppScope>()
         )
-    }
-
-    single {
-        MediaGenerationManager(client = get())
     }
 
     single<Retrofit> {

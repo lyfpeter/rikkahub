@@ -47,7 +47,6 @@ val viewModelModule = module {
             memoryConsolidationScheduler = get(),
             filesManager = get(),
             skillManager = get(),
-            workspaceRepository = get(),
         )
     }
     viewModel<MemoryFileVM> {
@@ -65,38 +64,10 @@ val viewModelModule = module {
         )
     }
     viewModelOf(::BackupVM)
-    viewModelOf(::ImgGenVM)
-    viewModelOf(::MediaCreationSessionsVM)
-    viewModel<MediaCreationVM> {
-        MediaCreationVM(
-            id = it.get(),
-            context = get(),
-            settingsStore = get(),
-            repository = get(),
-            service = get(),
-            remoteFileStore = get(),
-            appScope = get(),
-        )
-    }
     viewModelOf(::PromptVM)
     viewModelOf(::QuickMessagesVM)
     viewModelOf(::SkillsVM)
     viewModelOf(::SkillDetailVM)
-    viewModelOf(::WorkspaceVM)
-    viewModel<WorkspaceDetailVM> {
-        WorkspaceDetailVM(
-            id = it.get(),
-            repository = get(),
-            terminalSessionManager = get(),
-        )
-    }
-    viewModel<WorkspaceSshEditorVM> {
-        WorkspaceSshEditorVM(
-            id = it.getOrNull(),
-            repository = get(),
-        )
-    }
     viewModelOf(::FavoriteVM)
-    viewModelOf(::SearchVM)
     viewModelOf(::StatsVM)
 }
