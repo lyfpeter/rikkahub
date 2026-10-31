@@ -514,6 +514,15 @@ class RouteActivity : ComponentActivity() {
                                         backStack.clear()
                                         backStack.add(Screen.LyfclawLogin)
                                     },
+                                    onLogout = {
+                                        // 退出登录（token 已在页面内清除），回到上一页（通常是设置）
+                                        if (backStack.size > 1) {
+                                            backStack.removeLastOrNull()
+                                        } else {
+                                            backStack.clear()
+                                            backStack.add(Screen.Chat(Uuid.random().toString()))
+                                        }
+                                    },
                                 )
                             }
                         }

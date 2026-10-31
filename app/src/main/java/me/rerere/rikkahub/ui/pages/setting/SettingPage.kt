@@ -240,6 +240,42 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
+            item("lyfclawSettings") {
+                val containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                val loggedIn = settings.isLyfclawEnabled
+                CardGroup(
+                    title = { Text("lyfclaw") },
+                ) {
+                    item(
+                        onClick = {
+                            navController.navigate(
+                                if (loggedIn) Screen.LyfclawAccount else Screen.LyfclawLogin
+                            )
+                        },
+                        leadingContent = {
+                            CardGroupIcon(
+                                HugeIcons.ServerStack01,
+                                containerColor = containerColor,
+                                contentColor = contentColor,
+                            )
+                        },
+                        supportingContent = {
+                            Text(if (loggedIn) settings.lyfclawBaseUrl else "连接 lyfclaw 后端")
+                        },
+                        headlineContent = {
+                            Text(
+                                if (loggedIn) {
+                                    "lyfclaw 账号（${settings.lyfclawUsername}）"
+                                } else {
+                                    "登录 lyfclaw"
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+
             item("dataSettings") {
                 val storageState by produceState(-1 to 0L) {
                     value = filesManager.countChatFiles()

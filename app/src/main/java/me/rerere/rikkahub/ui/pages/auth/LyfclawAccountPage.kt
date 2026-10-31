@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,7 @@ import org.koin.compose.koinInject
 @Composable
 fun LyfclawAccountPage(
     onPasswordChanged: () -> Unit,
+    onLogout: () -> Unit,
 ) {
     val authClient: LyfclawAuthClient = koinInject()
     val settingsStore: SettingsStore = koinInject()
@@ -137,6 +139,20 @@ fun LyfclawAccountPage(
                 } else {
                     Text("修改密码")
                 }
+            }
+            Spacer(Modifier.height(24.dp))
+            TextButton(
+                onClick = {
+                    if (loading) return@TextButton
+                    scope.launch {
+                        settingsStore.update { it.copy(lyfclawToken = null) }
+                        onLogout()
+                    }
+                },
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("退出登录", color = MaterialTheme.colorScheme.error)
             }
         }
     }
