@@ -23,11 +23,6 @@ import me.rerere.common.android.Logging
 import me.rerere.rikkahub.data.ai.prompts.MemoryConsolidationConversation
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryConsolidationInput
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryConsolidationPrompt
-import me.rerere.rikkahub.data.ai.tools.MemoryToolNames
-import me.rerere.rikkahub.data.ai.tools.buildMemoryTools
-import me.rerere.rikkahub.data.ai.tools.createMemoryConversationTools
-import me.rerere.rikkahub.data.ai.tools.dialogueMessages
-import me.rerere.rikkahub.data.ai.tools.memoryWritePath
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById

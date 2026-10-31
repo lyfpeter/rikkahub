@@ -44,7 +44,6 @@ import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import org.koin.compose.koinInject
 import java.io.File
 

@@ -198,10 +198,6 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.profileinstaller)
-    implementation(libs.termux.terminal.view) {
-        // terminal-emulator 由仓库内的 :terminal 模块提供, 不再引入上游 aar
-        exclude(group = "com.termux.termux-app", module = "terminal-emulator")
-    }
     implementation(libs.guava.listenablefuture)
 
     // Compose
@@ -320,32 +316,16 @@ dependencies {
     implementation(libs.bettertext.latex)
     implementation(libs.bettertext.highlight)
 
-    // mcp
-    implementation(libs.modelcontextprotocol.kotlin.sdk)
-
-    // jmDNS (mDNS/Bonjour for .local hostname)
-    implementation(libs.jmdns)
-
-    // SLF4J Android binding — routes Ktor/SLF4J logs to logcat
-    implementation(libs.slf4j.api)
-    implementation(libs.slf4j.android)
-
     // sqlite-android (requery SQLite for Android)
     implementation(libs.sqlite.android)
 
     // modules
     implementation(project(":ai"))
-    implementation(project(":web"))
     implementation(project(":document"))
-    implementation(project(":search"))
     implementation(project(":speech"))
-    implementation(project(":mediagen"))
     implementation(project(":common"))
     implementation(project(":material3"))
     implementation(project(":ui"))
-    implementation(project(":workspace"))
-    implementation(project(":terminal"))
-    implementation(project(":oauth"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 
     // Leak Canary
