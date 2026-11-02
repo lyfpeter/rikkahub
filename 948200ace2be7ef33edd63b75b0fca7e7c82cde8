@@ -1,0 +1,32 @@
+app/src/main/java/me/rerere/rikkahub/di/AppModule.kt
+  s_2ce21671f38271::t_a2095ecbd78549 10
+  s_2ce21671f38271::t_081e36e77f2927 9
+  s_2ce21671f38271::t_97c2fd2af19cc9 102
+  s_2ce21671f38271::t_25a3752acbceaa 129,131-132
+app/src/main/java/me/rerere/rikkahub/data/ai/ChatRequestFactory.kt
+  s_2ce21671f38271::t_0fc4fc89a35f0c 110
+app/src/main/java/me/rerere/rikkahub/data/ai/tools/ChatToolFactory.kt
+  s_2ce21671f38271::t_a5bf6f9e2ecd7b 9,12-15,21,26,28-29
+app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
+  s_2ce21671f38271::t_1139ec16948d8d 230
+  s_2ce21671f38271::t_0e7025cb27f165 242
+app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+  s_2ce21671f38271::t_ffd764679510b3 109
+  s_2ce21671f38271::t_cf0a6052aefedf 701-702
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "948200ace2be7ef33edd63b75b0fca7e7c82cde8",
+  "prompts": {},
+  "sessions": {
+    "s_2ce21671f38271": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df569aab-05ff-4923-815a-903894343148",
+        "model": "glm-5.2"
+      },
+      "human_author": "liyf37 <liyf37@chinatelecom.cn>"
+    }
+  }
+}

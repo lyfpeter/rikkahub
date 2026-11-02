@@ -1,0 +1,19 @@
+app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+  s_2ce21671f38271::t_ddd4735dce2ba6 230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "734f7d52e31c1b1276fb99072736a231111892b5",
+  "prompts": {},
+  "sessions": {
+    "s_2ce21671f38271": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df569aab-05ff-4923-815a-903894343148",
+        "model": "glm-5.2"
+      },
+      "human_author": "liyf37 <liyf37@chinatelecom.cn>"
+    }
+  }
+}
