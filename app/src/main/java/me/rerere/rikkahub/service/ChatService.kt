@@ -444,7 +444,7 @@ class ChatService(
                 val result = if (queued.answer) {
                     val settings = settingsStore.settingsFlow.value
                     if (settings.isLyfclawEnabled && lyfclawChatService != null) {
-                        runLyfclawTurn(session, processedContent, settings.lyfclawUsername.ifBlank { "mobile-user" })
+                        runLyfclawTurn(session, processedContent)
                     } else {
                         runTurn(session)
                     }
@@ -723,6 +723,20 @@ class ChatService(
     }
 
     /**
+     * 解析发消息要用的 lyfclaw bot 标签。
+     * 优先用已保存的；为空时向后端拉 bot 列表取第一个并落盘缓存。
+     */
+    private suspend fun resolveLyfclawBotLabel(): String {
+        val saved = settingsStore.awaitLoaded().lyfclawBotLabel
+        if (saved.isNotBlank()) return saved
+        val bots = lyfclawChatService?.fetchBots().orEmpty()
+        val label = bots.firstOrNull()?.label
+            ?: throw IllegalStateException("lyfclaw 后端没有可用的 bot，请检查账号/租户配置")
+        settingsStore.update { it.copy(lyfclawBotLabel = label) }
+        return label
+    }
+
+    /**
      * T7: lyfclaw 后端对话轮次。
      *
      * 把用户消息发到 lyfclaw /api/app/chat/direct/stream，解析 SSE 事件流，
@@ -732,12 +746,14 @@ class ChatService(
     private suspend fun runLyfclawTurn(
         session: ConversationSession,
         userContent: List<me.rerere.ai.ui.UIMessagePart>,
-        botLabel: String,
     ): TurnResult {
         val text = userContent.filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>().joinToString("") { it.text }
         val convId = session.state.value.title.ifBlank { null }
 
         try {
+            // 解析可用的 bot 标签（后端要求 bot_label 归属当前用户）
+            val botLabel = resolveLyfclawBotLabel()
+
             // 创建 assistant 消息占位
             val assistantId = Uuid.random()
             session.update {

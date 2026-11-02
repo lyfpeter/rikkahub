@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.remote
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -9,6 +10,12 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+@Serializable
+data class LyfclawLoginRequest(
+    val username: String,
+    val password: String,
+)
 
 @Serializable
 data class LyfclawLoginResponse(
@@ -37,6 +44,17 @@ data class LyfclawPasswordRequest(
     val new_password: String,
 )
 
+/**
+ * 规整 lyfclaw 服务地址：去首尾空白、缺协议时补 `http://`、去掉结尾的 `/`。
+ * 这样用户只填 `192.168.1.7:8000` 也能正常解析，不用担心漏写 scheme。
+ */
+fun normalizeLyfclawBaseUrl(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return ""
+    val withScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"
+    return withScheme.trimEnd('/')
+}
+
 class LyfclawAuthClient(
     private val httpClient: HttpClient,
 ) {
@@ -45,9 +63,14 @@ class LyfclawAuthClient(
         isLenient = true
     }
     suspend fun login(baseUrl: String, username: String, password: String): LyfclawLoginResponse {
-        return httpClient.post("$baseUrl/api/app/login") {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            LyfclawLoginRequest.serializer(),
+            LyfclawLoginRequest(username, password),
+        )
+        return httpClient.post("$base/api/app/login") {
             contentType(ContentType.Application.Json)
-            setBody(mapOf("username" to username, "password" to password))
+            setBody(payload)
         }.let { resp ->
             if (resp.status.value !in 200..299) {
                 throw Exception("Login failed: ${resp.status.value} ${resp.bodyAsText()}")
@@ -57,9 +80,11 @@ class LyfclawAuthClient(
     }
 
     suspend fun register(baseUrl: String, req: LyfclawRegisterRequest): LyfclawLoginResponse {
-        return httpClient.post("$baseUrl/api/app/register") {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(LyfclawRegisterRequest.serializer(), req)
+        return httpClient.post("$base/api/app/register") {
             contentType(ContentType.Application.Json)
-            setBody(req)
+            setBody(payload)
         }.let { resp ->
             if (resp.status.value !in 200..299) {
                 throw Exception("Register failed: ${resp.status.value} ${resp.bodyAsText()}")
@@ -69,10 +94,15 @@ class LyfclawAuthClient(
     }
 
     suspend fun changePassword(baseUrl: String, token: String, oldPassword: String, newPassword: String) {
-        httpClient.post("$baseUrl/api/app/password") {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            LyfclawPasswordRequest.serializer(),
+            LyfclawPasswordRequest(oldPassword, newPassword),
+        )
+        httpClient.post("$base/api/app/password") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer $token")
-            setBody(LyfclawPasswordRequest(oldPassword, newPassword))
+            setBody(payload)
         }.let { resp ->
             if (resp.status.value !in 200..299) {
                 throw Exception("Change password failed: ${resp.status.value} ${resp.bodyAsText()}")
@@ -81,7 +111,8 @@ class LyfclawAuthClient(
     }
 
     suspend fun me(baseUrl: String, token: String): LyfclawUserInfo {
-        return httpClient.post("$baseUrl/api/app/me") {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        return httpClient.get("$base/api/app/me") {
             header("Authorization", "Bearer $token")
         }.let { resp ->
             if (resp.status.value !in 200..299) {
@@ -92,7 +123,8 @@ class LyfclawAuthClient(
     }
 
     suspend fun refresh(baseUrl: String, token: String): LyfclawLoginResponse {
-        return httpClient.post("$baseUrl/api/app/refresh") {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        return httpClient.post("$base/api/app/refresh") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer $token")
         }.let { resp ->

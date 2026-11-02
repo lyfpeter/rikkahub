@@ -24,6 +24,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,12 +46,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.AiMagic
 import me.rerere.hugeicons.stroke.Alert01
 import me.rerere.hugeicons.stroke.Book01
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Bookshelf01
-import me.rerere.hugeicons.stroke.Brain02
 import me.rerere.hugeicons.stroke.Clapping01
 import me.rerere.hugeicons.stroke.Database02
 import me.rerere.hugeicons.stroke.GlobalSearch
@@ -68,10 +67,11 @@ import me.rerere.hugeicons.stroke.Share04
 import me.rerere.hugeicons.stroke.SmartPhone01
 import me.rerere.hugeicons.stroke.Sun01
 import me.rerere.hugeicons.stroke.Tiktok
+import me.rerere.hugeicons.stroke.UserCircle
 import me.rerere.hugeicons.stroke.WavingHand01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.datastore.isNotConfigured
+import me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -146,10 +146,10 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
             contentPadding = innerPadding + PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (settings.isNotConfigured()) {
+            if (!settings.isLyfclawEnabled) {
                 item {
                     ProviderConfigWarningCard(
-                        onClick = { navController.navigate(Screen.SettingProvider) }
+                        onClick = { navController.navigate(Screen.LyfclawLogin) }
                     )
                 }
             }
@@ -213,29 +213,17 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
-            item("modelServices") {
+            item("speechServices") {
                 val containerColor = MaterialTheme.colorScheme.tertiaryContainer
                 val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 CardGroup(
-                    title = { Text(stringResource(R.string.setting_page_model_and_services)) },
+                    title = { Text(stringResource(R.string.setting_page_tts_service)) },
                 ) {
-                    item(
-                        onClick = { navController.navigate(Screen.SettingModels) },
-                        leadingContent = { CardGroupIcon(HugeIcons.AiMagic, containerColor = containerColor, contentColor = contentColor) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_default_model_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_default_model)) },
-                    )
-                    item(
-                        onClick = { navController.navigate(Screen.SettingProvider) },
-                        leadingContent = { CardGroupIcon(HugeIcons.Brain02, containerColor = containerColor, contentColor = contentColor) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_providers_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_providers)) },
-                    )
                     item(
                         onClick = { navController.navigate(Screen.SettingSpeech) },
                         leadingContent = { CardGroupIcon(HugeIcons.Megaphone01, containerColor = containerColor, contentColor = contentColor) },
                         supportingContent = { Text(stringResource(R.string.setting_page_tts_service_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_tts_service)) },
+                        headlineContent = { Text(stringResource(R.string.setting_page_tts_settings)) },
                     )
                 }
             }
@@ -244,15 +232,13 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 val containerColor = MaterialTheme.colorScheme.tertiaryContainer
                 val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 val loggedIn = settings.isLyfclawEnabled
+                var showServerDialog by remember { mutableStateOf(false) }
                 CardGroup(
                     title = { Text("lyfclaw") },
                 ) {
+                    // 只配置 lyfclaw 的服务地址（IP）
                     item(
-                        onClick = {
-                            navController.navigate(
-                                if (loggedIn) Screen.LyfclawAccount else Screen.LyfclawLogin
-                            )
-                        },
+                        onClick = { showServerDialog = true },
                         leadingContent = {
                             CardGroupIcon(
                                 HugeIcons.ServerStack01,
@@ -261,16 +247,43 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                         supportingContent = {
-                            Text(if (loggedIn) settings.lyfclawBaseUrl else "连接 lyfclaw 后端")
+                            Text(settings.lyfclawBaseUrl.ifBlank { "未配置服务地址" })
+                        },
+                        headlineContent = { Text("服务地址") },
+                    )
+                    // 登录 / 账号
+                    item(
+                        onClick = {
+                            navController.navigate(
+                                if (loggedIn) Screen.LyfclawAccount else Screen.LyfclawLogin
+                            )
+                        },
+                        leadingContent = {
+                            CardGroupIcon(
+                                HugeIcons.UserCircle,
+                                containerColor = containerColor,
+                                contentColor = contentColor,
+                            )
+                        },
+                        supportingContent = {
+                            if (loggedIn) {
+                                Text(settings.lyfclawUsername.ifBlank { "已登录" })
+                            } else {
+                                Text("登录 lyfclaw 后端")
+                            }
                         },
                         headlineContent = {
-                            Text(
-                                if (loggedIn) {
-                                    "lyfclaw 账号（${settings.lyfclawUsername}）"
-                                } else {
-                                    "登录 lyfclaw"
-                                }
-                            )
+                            Text(if (loggedIn) "lyfclaw 账号" else "登录 lyfclaw")
+                        },
+                    )
+                }
+                if (showServerDialog) {
+                    LyfclawServerDialog(
+                        initialValue = settings.lyfclawBaseUrl,
+                        onDismiss = { showServerDialog = false },
+                        onConfirm = { value ->
+                            vm.updateSettings { it.copy(lyfclawBaseUrl = normalizeLyfclawBaseUrl(value)) }
+                            showServerDialog = false
                         },
                     )
                 }
@@ -448,11 +461,11 @@ private fun ProviderConfigWarningCard(onClick: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.setting_page_config_api_title),
+                        text = "尚未连接 lyfclaw",
                         style = MaterialTheme.typography.titleMediumEmphasized,
                     )
                     Text(
-                        text = stringResource(R.string.setting_page_config_api_desc),
+                        text = "请先配置 lyfclaw 服务地址并登录",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -465,10 +478,46 @@ private fun ProviderConfigWarningCard(onClick: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onError,
                 ),
             ) {
-                Text(stringResource(R.string.setting_page_config))
+                Text("去登录")
             }
         }
     }
+}
+
+@Composable
+private fun LyfclawServerDialog(
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by remember { mutableStateOf(initialValue) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("lyfclaw 服务地址") },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text("服务地址") },
+                placeholder = { Text("http://your-server:8080") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(value) },
+                enabled = value.isNotBlank(),
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 private data class QQGroup(

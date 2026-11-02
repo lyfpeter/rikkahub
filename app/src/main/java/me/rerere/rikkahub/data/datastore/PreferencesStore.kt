@@ -187,6 +187,7 @@ class SettingsStore internal constructor(
         val LYFCLAW_BASE_URL = stringPreferencesKey("lyfclaw_base_url")
         val LYFCLAW_TOKEN = stringPreferencesKey("lyfclaw_token")
         val LYFCLAW_USERNAME = stringPreferencesKey("lyfclaw_username")
+        val LYFCLAW_BOT_LABEL = stringPreferencesKey("lyfclaw_bot_label")
 
         // Uses the same DataStore singleton without starting settings flows or requiring Koin.
         internal suspend fun restoreBeforeInitialization(context: Context, settings: Settings, launchCount: Int) {

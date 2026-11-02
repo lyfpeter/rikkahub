@@ -345,7 +345,8 @@ private fun ChatPageContent(
                         vm.stopGeneration()
                     },
                     onSendClick = {
-                        if (currentChatModel == null) {
+                        // lyfclaw 模式下由后端选择模型，前端不再要求先选模型
+                        if (currentChatModel == null && !setting.isLyfclawEnabled) {
                             toaster.show("请先选择模型", type = ToastType.Error)
                             return@ChatInput
                         }

@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.remote.LyfclawAuthClient
 import me.rerere.rikkahub.data.remote.LyfclawRegisterRequest
+import me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl
 import org.koin.compose.koinInject
 
 @Composable
@@ -125,9 +126,10 @@ fun LyfclawRegisterPage(
                             )
                             settingsStore.update {
                                 it.copy(
-                                    lyfclawBaseUrl = baseUrl,
+                                    lyfclawBaseUrl = normalizeLyfclawBaseUrl(baseUrl),
                                     lyfclawToken = resp.session_id,
                                     lyfclawUsername = username,
+                                    lyfclawBotLabel = "",
                                 )
                             }
                             onRegisterSuccess()

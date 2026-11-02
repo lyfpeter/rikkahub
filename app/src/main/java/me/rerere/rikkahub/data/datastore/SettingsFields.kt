@@ -166,6 +166,7 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
             decode = { it },
         ),
         plain(LYFCLAW_USERNAME, Settings::lyfclawUsername) { copy(lyfclawUsername = it) },
+        plain(LYFCLAW_BOT_LABEL, Settings::lyfclawBotLabel) { copy(lyfclawBotLabel = it) },
     )
 }
 

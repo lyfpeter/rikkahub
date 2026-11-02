@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.remote.LyfclawAuthClient
+import me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import org.koin.compose.koinInject
 
@@ -103,9 +104,10 @@ fun LyfclawLoginPage(
                             val resp = authClient.login(baseUrl, username, password)
                             settingsStore.update {
                                 it.copy(
-                                    lyfclawBaseUrl = baseUrl,
+                                    lyfclawBaseUrl = normalizeLyfclawBaseUrl(baseUrl),
                                     lyfclawToken = resp.session_id,
                                     lyfclawUsername = username,
+                                    lyfclawBotLabel = "",
                                 )
                             }
                             onLoginSuccess()

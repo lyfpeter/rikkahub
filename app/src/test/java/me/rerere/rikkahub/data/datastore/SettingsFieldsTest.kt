@@ -148,6 +148,7 @@ private val SAMPLE = Settings(
     lyfclawBaseUrl = "https://lyfclaw.example.com",
     lyfclawToken = "token",
     lyfclawUsername = "user",
+    lyfclawBotLabel = "bot",
 )
 
 private val STORED_KEYS = setOf(
@@ -194,4 +195,5 @@ private val STORED_KEYS = setOf(
     "lyfclaw_base_url",
     "lyfclaw_token",
     "lyfclaw_username",
+    "lyfclaw_bot_label",
 )

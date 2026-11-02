@@ -73,6 +73,8 @@ data class Settings(
     val lyfclawBaseUrl: String = "",
     val lyfclawToken: String? = null,
     val lyfclawUsername: String = "",
+    /** 当前选用的 lyfclaw bot 标签；为空时自动取后端列表第一个 */
+    val lyfclawBotLabel: String = "",
 ) {
     /** 是否已连接 lyfclaw 后端（用于 ChatService 分流判断） */
     val isLyfclawEnabled: Boolean get() = lyfclawBaseUrl.isNotBlank() && lyfclawToken != null

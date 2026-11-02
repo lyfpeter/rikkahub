@@ -5,6 +5,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -30,6 +32,17 @@ data class LyfclawChatRequest(
     val web_search: Boolean = false,
 )
 
+@Serializable
+data class LyfclawBot(
+    val label: String,
+    @SerialName("display_name") val displayName: String = "",
+)
+
+@Serializable
+data class LyfclawBotsResponse(
+    val bots: List<LyfclawBot> = emptyList(),
+)
+
 /**
  * 对接 lyfclaw 后端的核心对话服务。
  *
@@ -44,6 +57,30 @@ class LyfclawChatService(
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+    }
+
+    /**
+     * 拉取当前登录用户名下可用的 direct bot 列表（GET /api/app/chat/direct/bots）。
+     * 用于在没有配置 bot_label 时自动选一个，避免发消息时报 "bot not found"。
+     */
+    suspend fun fetchBots(): List<LyfclawBot> = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/chat/direct/bots")
+            .get()
+            .header("Authorization", "Bearer $token")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw Exception("List bots failed: ${resp.code} $body")
+            }
+            json.decodeFromString(LyfclawBotsResponse.serializer(), body).bots
+        }
     }
 
     /**
@@ -62,7 +99,7 @@ class LyfclawChatService(
         conversationId: String? = null,
     ): Flow<LyfclawSseEvent> = callbackFlow {
         val settings = settingsStore.settingsFlow.value
-        val baseUrl = settings.lyfclawBaseUrl
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
 
         val requestBody = json.encodeToString(

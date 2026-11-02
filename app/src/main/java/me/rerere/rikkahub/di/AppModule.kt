@@ -125,7 +125,8 @@ val appModule = module {
             translationHandler = get(),
             metaGenerator = get(),
             filesManager = get(),
-            folderRepository = get()
+            folderRepository = get(),
+            lyfclawChatService = get(),
         )
     }
 }
