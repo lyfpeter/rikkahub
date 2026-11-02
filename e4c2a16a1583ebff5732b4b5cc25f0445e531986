@@ -1,0 +1,23 @@
+app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+  s_b6c53c78e1f822::t_e650330923aa27 517-525
+app/src/main/java/me/rerere/rikkahub/ui/pages/auth/LyfclawAccountPage.kt
+  s_b6c53c78e1f822::t_a23a7742d687c9 17,36,143-156
+app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
+  s_b6c53c78e1f822::t_d13cebf69a4e7d 243-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e4c2a16a1583ebff5732b4b5cc25f0445e531986",
+  "prompts": {},
+  "sessions": {
+    "s_b6c53c78e1f822": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_b6c53c78e1f822",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}

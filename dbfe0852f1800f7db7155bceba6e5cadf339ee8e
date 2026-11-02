@@ -1,0 +1,23 @@
+app/src/main/java/me/rerere/rikkahub/data/remote/AuthInterceptor.kt
+  s_6e1b7b1b3a3723::t_ca459ea02b379f 3,6,12-14,18,20-23,29-37,40-67
+app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
+  s_6e1b7b1b3a3723::t_54dffbcd143ce3 220,277
+docs/lightweight-cleanup-plan.md
+  s_6e1b7b1b3a3723::t_9a81d325f94c23 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dbfe0852f1800f7db7155bceba6e5cadf339ee8e",
+  "prompts": {},
+  "sessions": {
+    "s_6e1b7b1b3a3723": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_6e1b7b1b3a3723",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
