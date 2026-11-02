@@ -1,0 +1,24 @@
+app/src/main/java/me/rerere/rikkahub/data/datastore/Settings.kt
+  s_2ce21671f38271::t_9e18fb59f57816 58-59,61
+  s_2ce21671f38271::t_133d1e433c01b7 66
+app/src/main/java/me/rerere/rikkahub/data/files/FileFolders.kt
+  s_2ce21671f38271::t_2ce4c4fd619c8e 1-10
+app/src/main/java/me/rerere/rikkahub/data/sync/BackupManager.kt
+  s_2ce21671f38271::t_9f1fe75577ebc8 68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "870a57258548cc1eb557c946dba2863acc4e0772",
+  "prompts": {},
+  "sessions": {
+    "s_2ce21671f38271": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df569aab-05ff-4923-815a-903894343148",
+        "model": "glm-5.2"
+      },
+      "human_author": "liyf37 <liyf37@chinatelecom.cn>"
+    }
+  }
+}
