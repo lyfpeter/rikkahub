@@ -1,0 +1,41 @@
+app/src/main/java/me/rerere/rikkahub/data/datastore/PreferencesStore.kt
+  s_ebfa1ea535a6a4::t_4bafb330815795 190
+app/src/main/java/me/rerere/rikkahub/data/datastore/Settings.kt
+  s_ebfa1ea535a6a4::t_970f7b33ecb3e1 76-77
+app/src/main/java/me/rerere/rikkahub/data/datastore/SettingsFields.kt
+  s_ebfa1ea535a6a4::t_bb5bd58194c0eb 169
+app/src/main/java/me/rerere/rikkahub/data/remote/LyfclawAuthClient.kt
+  s_ebfa1ea535a6a4::t_76e10a31f684d4 4,14-19,47-57,66-71,73,83-85,87,97-102,105,114-115,126-127
+app/src/main/java/me/rerere/rikkahub/di/AppModule.kt
+  s_ebfa1ea535a6a4::t_b33205b576c586 128-129
+app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+  s_ebfa1ea535a6a4::t_a84dc75c71d495 447,725-738,754-756
+app/src/main/java/me/rerere/rikkahub/service/LyfclawChatService.kt
+  s_ebfa1ea535a6a4::t_19bccfa593e33e 8-9,35-45,62-85,102
+app/src/main/java/me/rerere/rikkahub/ui/pages/auth/LyfclawLoginPage.kt
+  s_ebfa1ea535a6a4::t_e777d65dfb733d 32,107,110
+app/src/main/java/me/rerere/rikkahub/ui/pages/auth/LyfclawRegisterPage.kt
+  s_ebfa1ea535a6a4::t_d200116929d2ca 32,129,132
+app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatPage.kt
+  s_ebfa1ea535a6a4::t_0ee2776697e6cb 348-349
+app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
+  s_ebfa1ea535a6a4::t_b8c09d6bd5a4c1 27,70,74,149,152,216,220,226,235,239-254,263,269-273,276-286,464,468,481,487-522
+app/src/test/java/me/rerere/rikkahub/data/datastore/SettingsFieldsTest.kt
+  s_ebfa1ea535a6a4::t_9dbb60789f53a8 151,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "47d66660715425854ef786f2734463e940858cbd",
+  "prompts": {},
+  "sessions": {
+    "s_ebfa1ea535a6a4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e017f17f-9392-4e08-8287-ee68d19a094a",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
