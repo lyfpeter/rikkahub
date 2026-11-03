@@ -477,10 +477,8 @@ private fun ChatFilesPickerSheet(
     val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    var showCompressDialog by remember { mutableStateOf(false) }
 
     fun dismissAll() {
-        showCompressDialog = false
         onDismiss()
     }
 
@@ -497,10 +495,7 @@ private fun ChatFilesPickerSheet(
             state = inputState,
             assistant = assistant,
             chatModel = chatModel,
-            onCompressContext = vm::handleCompressContext,
             onUpdateAssistant = vm::updateAssistant,
-            showCompressDialog = showCompressDialog,
-            onShowCompressDialogChange = { showCompressDialog = it },
             onDismiss = { dismissAll() },
             onTakePic = attachmentPickerActions.onTakePicture,
             onPickImage = attachmentPickerActions.onPickImage,

@@ -49,7 +49,6 @@ import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.ImageUpload
 import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.McpServer
-import me.rerere.hugeicons.stroke.Megaphone01
 import me.rerere.hugeicons.stroke.Moon02
 import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.ServerStack01
@@ -197,21 +196,6 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
-            item("speechServices") {
-                val containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                CardGroup(
-                    title = { Text(stringResource(R.string.setting_page_tts_service)) },
-                ) {
-                    item(
-                        onClick = { navController.navigate(Screen.SettingSpeech) },
-                        leadingContent = { CardGroupIcon(HugeIcons.Megaphone01, containerColor = containerColor, contentColor = contentColor) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_tts_service_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_tts_settings)) },
-                    )
-                }
-            }
-
             item("lyfclawSettings") {
                 val containerColor = MaterialTheme.colorScheme.tertiaryContainer
                 val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
@@ -251,13 +235,13 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         },
                         supportingContent = {
                             if (loggedIn) {
-                                Text(settings.lyfclawUsername.ifBlank { "已登录" })
+                                Text("已登录")
                             } else {
                                 Text("登录 lyfclaw 后端")
                             }
                         },
                         headlineContent = {
-                            Text(if (loggedIn) "lyfclaw 账号" else "登录 lyfclaw")
+                            Text(if (loggedIn) settings.lyfclawUsername.ifBlank { "lyfclaw" } else "登录 lyfclaw")
                         },
                     )
                 }

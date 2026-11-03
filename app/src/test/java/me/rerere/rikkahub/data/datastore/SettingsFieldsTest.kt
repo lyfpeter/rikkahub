@@ -14,6 +14,7 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.theme.CustomTheme
+import me.rerere.tts.provider.TTSProviderSetting
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -64,7 +65,7 @@ class SettingsFieldsTest {
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.fastModelId)
         assertEquals(DEFAULT_MODE_INJECTIONS, settings.modeInjections)
         assertEquals(DEFAULT_ASSISTANT_ID, settings.assistantId)
-        assertEquals(DEFAULT_SYSTEM_TTS_ID, settings.selectedTTSProviderId)
+        assertEquals(DEFAULT_TTS_PROVIDER_ID, settings.selectedTTSProviderId)
         assertEquals(null, settings.selectedASRProviderId)
         assertEquals(null, settings.memoryModelId)
         assertEquals(true, settings.dynamicColor)
@@ -130,7 +131,7 @@ private val SAMPLE = Settings(
     webDavConfig = WebDavConfig(url = "https://dav.example.com"),
     s3Config = S3Config(bucket = "backup"),
     uploadS3Config = S3Config(bucket = "upload"),
-    ttsProviders = DEFAULT_TTS_PROVIDERS.take(1),
+    ttsProviders = listOf(TTSProviderSetting.OpenAI(id = id(10), name = "TTS")),
     selectedTTSProviderId = id(10),
     defaultTTSPlaybackSpeed = 1.5f,
     asrProviders = listOf(ASRProviderSetting.OpenAIRealtime(id = id(11))),

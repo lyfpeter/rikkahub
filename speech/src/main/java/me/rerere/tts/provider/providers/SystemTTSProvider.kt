@@ -102,7 +102,7 @@ class SystemTTSProvider : TTSProvider<TTSProviderSetting.SystemTTS> {
 
             } else {
                 if (continuation.isActive) continuation.resumeWithException(
-                    Exception("Failed to initialize TextToSpeech engine")
+                    Exception("系统 TTS 引擎初始化失败，请在设置中配置其他 TTS 服务")
                 )
             }
         }

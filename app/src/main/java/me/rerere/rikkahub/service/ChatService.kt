@@ -451,6 +451,11 @@ class ChatService(
                     null
                 }
 
+                // lyfclaw 模式下 runLyfclawTurn 不会走到 runTurn 内部的标题生成，需要单独触发
+                if (result is TurnResult.Finished) {
+                    sessionManager.launchWithSession(conversationId) { generateTitle(conversationId) }
+                }
+
                 queued.reply?.completeWith(runCatching {
                     check(result != TurnResult.Failed) { context.getString(R.string.chat_page_voice_generation_failed) }
                     check((result as? TurnResult.Finished)?.reason !is AgentFinishReason.AwaitingApproval) {
@@ -855,7 +860,18 @@ class ChatService(
             if (!force && !settings.enableAutoTitle) return@withLoadedSession
 
             runCatching {
-                val title = metaGenerator.generateTitle(settings, conversation)
+                val title = if (settings.isLyfclawEnabled) {
+                    // lyfclaw 模式下没有本地快速模型，用第一条用户消息摘要作为标题
+                    conversation.currentMessages
+                        .firstOrNull { it.role == MessageRole.USER }
+                        ?.toText()
+                        ?.take(20)
+                        ?.trim()
+                        ?.ifBlank { null }
+                        ?: "新聊天"
+                } else {
+                    metaGenerator.generateTitle(settings, conversation)
+                }
                 // 只写标题这一列：这时可能已经在生成下一轮，不能把还没生成完的内容一起落库。
                 // 生成期间会话被删除的话不写入
                 session.updateMetadata(

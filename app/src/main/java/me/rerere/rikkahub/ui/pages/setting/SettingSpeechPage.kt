@@ -56,7 +56,7 @@ import me.rerere.hugeicons.stroke.Mic01
 import me.rerere.hugeicons.stroke.StopCircle
 import me.rerere.hugeicons.stroke.VolumeHigh
 import me.rerere.rikkahub.R
-import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_TTS_ID
+import me.rerere.rikkahub.data.datastore.DEFAULT_TTS_PROVIDER_ID
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
@@ -239,7 +239,7 @@ private fun TTSProviderList(
                     name = provider.name.ifEmpty { stringResource(R.string.setting_tts_page_default_name) },
                     typeName = provider.typeName,
                     isSelected = isSelected,
-                    deletable = provider.id != DEFAULT_SYSTEM_TTS_ID,
+                    deletable = provider.id != DEFAULT_TTS_PROVIDER_ID,
                     onSelect = {
                         onUpdateSettings { it.copy(selectedTTSProviderId = provider.id) }
                     },
@@ -266,7 +266,7 @@ private fun TTSProviderList(
             deleteTarget?.let { target ->
                 val newProviders = settings.ttsProviders.filter { it.id != target.id }
                 val newSelectedId =
-                    if (settings.selectedTTSProviderId == target.id) DEFAULT_SYSTEM_TTS_ID else settings.selectedTTSProviderId
+                    if (settings.selectedTTSProviderId == target.id) DEFAULT_TTS_PROVIDER_ID else settings.selectedTTSProviderId
                 onUpdateSettings {
                     it.copy(
                         ttsProviders = newProviders,

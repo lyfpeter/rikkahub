@@ -24,7 +24,6 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,7 +62,6 @@ import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Package
-import me.rerere.hugeicons.stroke.Package01
 import me.rerere.hugeicons.stroke.PaintBoard
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.hugeicons.stroke.Video01
@@ -74,12 +72,12 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
-import me.rerere.rikkahub.data.model.lastContextTokens
+
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.hooks.ChatInputState
-import me.rerere.rikkahub.utils.formatNumber
+
 import org.koin.compose.koinInject
 
 private enum class FilesPickerPage {
@@ -97,10 +95,7 @@ internal fun FilesPicker(
     assistant: Assistant,
     chatModel: Model?,
     state: ChatInputState,
-    onCompressContext: (additionalPrompt: String, keepRecentMessages: Int) -> Job,
     onUpdateAssistant: (Assistant) -> Unit,
-    showCompressDialog: Boolean,
-    onShowCompressDialogChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onTakePic: () -> Unit,
     onPickImage: () -> Unit,
@@ -167,14 +162,9 @@ internal fun FilesPicker(
                 )
 
                 // 分段列表：各项按显示条件依次占位，首尾项才有大圆角
-                // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
-                val showCompress = assistant.contextMessageLimit <= 0
-                val itemCount = 1 + listOf(showCompress).count { it }
-                var itemIndex = 0
                 Column(
                     verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
                 ) {
-
 
                     // Extensions (Quick Messages + Prompt Injections + Skills)
                     val activeCount =
@@ -184,7 +174,7 @@ internal fun FilesPicker(
                             assistant.enabledSkills.size
                     SegmentedListItem(
                         onClick = { page = FilesPickerPage.EXTENSIONS },
-                        shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
+                        shapes = ListItemDefaults.segmentedShapes(index = 0, count = 1),
                         leadingContent = {
                             Icon(
                                 imageVector = HugeIcons.Package,
@@ -199,62 +189,9 @@ internal fun FilesPicker(
                     ) {
                         Text(stringResource(R.string.assistant_page_tab_extensions))
                     }
-
-                    // Compress History Button
-                    if (showCompress) {
-                        SegmentedListItem(
-                            onClick = { onShowCompressDialogChange(true) },
-                            shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
-                            leadingContent = {
-                                Icon(
-                                    imageVector = HugeIcons.Package01,
-                                    contentDescription = null,
-                                )
-                            },
-                            trailingContent = {
-                                val contextTokens = remember(conversation.messageNodes) {
-                                    conversation.lastContextTokens()
-                                }
-                                val contextLength = chatModel?.contextLength?.takeIf { it > 0 }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        if (conversation.messageNodes.isNotEmpty()) {
-                                            Text(
-                                                text = stringResource(R.string.chat_page_message_count, conversation.messageNodes.size),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        if (contextTokens != null && contextLength != null) {
-                                            Text(
-                                                text = "${contextTokens.formatNumber()} / ${contextLength.formatNumber()}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
-                                    if (contextTokens != null && contextLength != null) {
-                                        ContextUsageRing(fraction = contextTokens.toFloat() / contextLength)
-                                    }
-                                }
-                            },
-                        ) {
-                            Text(stringResource(R.string.chat_page_compress_context))
-                        }
-                    }
                 }
             }
         }
-    }
-    // Compress Context Dialog
-    if (showCompressDialog) {
-        CompressContextDialog(onDismiss = {
-            onShowCompressDialogChange(false)
-            onDismiss()
-        }, onConfirm = onCompressContext)
     }
 }
 
@@ -383,23 +320,6 @@ internal fun CountBadge(count: Int) {
     ) {
         Text(count.toString())
     }
-}
-
-// 上下文使用量进度环，接近上限时变色提醒压缩
-@Composable
-private fun ContextUsageRing(fraction: Float) {
-    val color = when {
-        fraction >= 0.9f -> MaterialTheme.colorScheme.error
-        fraction >= 0.7f -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
-    }
-    CircularProgressIndicator(
-        progress = { fraction.coerceIn(0f, 1f) },
-        modifier = Modifier.size(24.dp),
-        color = color,
-        strokeWidth = 3.dp,
-        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    )
 }
 
 @Preview(showBackground = true)

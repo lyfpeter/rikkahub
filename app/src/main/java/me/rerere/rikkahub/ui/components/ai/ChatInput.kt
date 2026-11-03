@@ -87,6 +87,8 @@ import me.rerere.asr.ASRStatus
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowUp02
+import me.rerere.hugeicons.stroke.Keyboard
+import me.rerere.hugeicons.stroke.Voice
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
@@ -171,6 +173,7 @@ fun ChatInput(
     }
     val asrPermission = rememberPermissionState(PermissionRecordAudio)
     PermissionManager(permissionState = asrPermission)
+    var voiceInputMode by remember { mutableStateOf(false) }
     var asrBaseText by remember { mutableStateOf("") }
     LaunchedEffect(asrState.status) {
         when (asrState.status) {
@@ -255,11 +258,20 @@ fun ChatInput(
                         MediaFileInputRow(state = state)
                     }
 
-                    TextInputRow(
-                        state = state,
-                        assistant = assistant,
-                        onSendMessage = { sendMessage() },
-                    )
+                    if (voiceInputMode) {
+                        HoldToTalkButton(
+                            onResult = { text ->
+                                voiceInputMode = false
+                                state.setMessageText(text)
+                            },
+                        )
+                    } else {
+                        TextInputRow(
+                            state = state,
+                            assistant = assistant,
+                            onSendMessage = { sendMessage() },
+                        )
+                    }
 
                     Row(
                         modifier = Modifier
@@ -296,29 +308,25 @@ fun ChatInput(
                             )
                         }
 
-                        if (!voiceState.isActive && (asrState.isAvailable || asrState.isRecording)) {
-                            AsrButton(
-                                state = asrState,
+                        if (!voiceState.isActive) {
+                            ActionIconButton(
                                 onClick = {
-                                    when (asrState.status) {
-                                        ASRStatus.Listening -> asr.stop()
-                                        ASRStatus.Idle, ASRStatus.Error -> {
-                                            if (!asrPermission.allRequiredPermissionsGranted) {
-                                                asrPermission.requestPermissions()
-                                            } else {
-                                                asrBaseText = state.textContent.text.toString()
-                                                asr.start { transcript ->
-                                                    val spacer =
-                                                        if (asrBaseText.isBlank() || transcript.isBlank()) "" else " "
-                                                    state.setMessageText(asrBaseText + spacer + transcript)
-                                                }
-                                            }
-                                        }
-
-                                        ASRStatus.Connecting, ASRStatus.Stopping -> {}
+                                    voiceInputMode = !voiceInputMode
+                                    if (voiceInputMode && !asrPermission.allRequiredPermissionsGranted) {
+                                        asrPermission.requestPermissions()
                                     }
                                 }
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = if (voiceInputMode) HugeIcons.Keyboard else HugeIcons.Voice,
+                                    contentDescription = stringResource(R.string.asr_button_content_description),
+                                    tint = if (voiceInputMode) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
                         }
 
                         if (loading) {
@@ -326,7 +334,7 @@ fun ChatInput(
                         }
 
                         AnimatedVisibility(
-                            visible = !asrState.isRecording,
+                            visible = !voiceInputMode && !asrState.isRecording,
                             enter = fadeIn() + scaleIn(),
                             exit = fadeOut() + scaleOut(),
                         ) {

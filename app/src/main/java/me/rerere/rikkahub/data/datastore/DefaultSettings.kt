@@ -35,14 +35,10 @@ internal val DEFAULT_ASSISTANTS = listOf(
     ),
 )
 
-val DEFAULT_SYSTEM_TTS_ID = Uuid.parse("026a01a2-c3a0-4fd5-8075-80e03bdef200")
+val DEFAULT_TTS_PROVIDER_ID = Uuid.parse("e36b22ef-ca82-40ab-9e70-60cad861911c")
 internal val DEFAULT_TTS_PROVIDERS = listOf(
-    TTSProviderSetting.SystemTTS(
-        id = DEFAULT_SYSTEM_TTS_ID,
-        name = "",
-    ),
     TTSProviderSetting.OpenAI(
-        id = Uuid.parse("e36b22ef-ca82-40ab-9e70-60cad861911c"),
+        id = DEFAULT_TTS_PROVIDER_ID,
         name = "AiHubMix",
         baseUrl = "https://aihubmix.com/v1",
         model = "gpt-4o-mini-tts",
