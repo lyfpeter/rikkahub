@@ -6,7 +6,6 @@ import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.data.repository.FilesRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
-import me.rerere.rikkahub.data.repository.TranslationHistoryRepository
 import me.rerere.rikkahub.data.skills.SkillManager
 import org.koin.dsl.module
 
@@ -21,10 +20,6 @@ val repositoryModule = module {
 
     single {
         MemoryRepository(get())
-    }
-
-    single {
-        TranslationHistoryRepository(get())
     }
 
     single {

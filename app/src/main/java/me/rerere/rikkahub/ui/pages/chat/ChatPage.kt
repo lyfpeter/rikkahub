@@ -378,7 +378,6 @@ private fun ChatPageContent(
                         }
                         inputState.clearInput()
                     },
-                    onUpdateChatModel = vm::setChatModel,
                     onUpdateAssistant = vm::updateAssistant,
                     onMoreClick = {
                         showFilesSheet = true
@@ -425,12 +424,6 @@ private fun ChatPageContent(
                 onClickSuggestion = { suggestion ->
                     inputState.editingMessage = null
                     inputState.setMessageText(suggestion)
-                },
-                onTranslate = { message, locale ->
-                    vm.translateMessage(message, locale)
-                },
-                onClearTranslation = { message ->
-                    vm.clearTranslationField(message.id)
                 },
                 onJumpToMessage = { index ->
                     previewMode = false

@@ -82,7 +82,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
-import me.rerere.ai.provider.ModelType
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.asr.ASRStatus
 import me.rerere.hugeicons.HugeIcons
@@ -123,7 +122,6 @@ fun ChatInput(
     chatModel: Model?,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
-    onUpdateChatModel: (Model) -> Unit,
     onUpdateAssistant: (Assistant) -> Unit,
     onMoreClick: () -> Unit,
     onCancelClick: () -> Unit,
@@ -150,11 +148,6 @@ fun ChatInput(
         topEnd = themeShape.topEnd,
         bottomEnd = themeShape.bottomEnd,
         bottomStart = themeShape.bottomStart,
-    )
-    val modelListState = rememberModelListState(
-        modelId = chatModel?.id,
-        providers = settings.providers,
-        type = ModelType.CHAT,
     )
 
     fun sendMessage() {
@@ -281,13 +274,6 @@ fun ChatInput(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            // Model Picker
-                            ModelSelectorButton(
-                                state = modelListState,
-                                onlyIcon = true,
-                                modifier = Modifier,
-                            )
-
                             // Reasoning
                             if (chatModel?.abilities?.contains(ModelAbility.REASONING) == true) {
                                 ReasoningButton(
@@ -357,11 +343,6 @@ fun ChatInput(
 
         }
     }
-
-    ModelListSheet(
-        state = modelListState,
-        onSelect = onUpdateChatModel,
-    )
 }
 
 @Composable

@@ -41,7 +41,7 @@ import me.rerere.rikkahub.data.ai.ChatRequestFactory
 import me.rerere.rikkahub.data.ai.ChatTurnContext
 import me.rerere.rikkahub.data.ai.ConversationMetaGenerator
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
-import me.rerere.rikkahub.data.ai.TranslationHandler
+
 import me.rerere.rikkahub.data.ai.prompts.buildCompressPrompt
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -68,7 +68,7 @@ import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.model.withAssistantUpdate
 import me.rerere.rikkahub.data.model.withNodeFavorite
 import me.rerere.rikkahub.data.model.withToolApproval
-import me.rerere.rikkahub.data.model.withTranslation
+
 import me.rerere.rikkahub.data.model.withoutConversationFields
 import me.rerere.rikkahub.data.model.withoutUnresumableToolCalls
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -103,7 +103,6 @@ class ChatService(
     private val conversationRepo: ConversationRepository,
     private val requestFactory: ChatRequestFactory,
     private val memoryConsolidationScheduler: MemoryConsolidationScheduler,
-    private val translationHandler: TranslationHandler,
     private val metaGenerator: ConversationMetaGenerator,
     private val filesManager: FilesManager,
     private val folderRepository: FolderRepository,
@@ -1216,53 +1215,6 @@ class ChatService(
         session.messageQueue.state.value.messages.forEach { queued ->
             session.messageQueue.remove(queued.id)?.let(::cleanupQueuedAttachments)
         }
-    }
-
-    // ---- 翻译消息 ----
-
-    fun translateMessage(
-        conversationId: Uuid,
-        message: UIMessage,
-        targetLanguage: Locale
-    ) {
-        appScope.launch(Dispatchers.IO) {
-            sessionManager.withSession<Unit>(conversationId) { session ->
-                try {
-                    ensureInitialized(session)
-                    val settings = settingsStore.awaitLoaded()
-
-                    val messageText = message.parts.filterIsInstance<UIMessagePart.Text>()
-                        .joinToString("\n\n") { it.text }
-                        .trim()
-
-                    if (messageText.isBlank()) return@withSession
-
-                    // Set loading state for translation
-                    val loadingText = context.getString(R.string.translating)
-                    session.update { it.withTranslation(message.id, loadingText) }
-
-                    translationHandler.translateText(
-                        settings = settings,
-                        sourceText = messageText,
-                        targetLanguage = targetLanguage
-                    ) { translatedText ->
-                        // Update translation field in real-time
-                        session.update { it.withTranslation(message.id, translatedText) }
-                    }.collect { /* Final translation already handled in onStreamUpdate */ }
-
-                    session.flush()
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    // Clear translation field on error
-                    if (session.isInitialized) session.update { it.withTranslation(message.id, null) }
-                    addError(e, conversationId, title = context.getString(R.string.error_title_translate_message))
-                }
-            }
-        }
-    }
-
-    suspend fun clearTranslationField(conversationId: Uuid, messageId: Uuid) {
-        mutate(conversationId) { it.withTranslation(messageId, null) }
     }
 
     // ---- 消息操作 ----

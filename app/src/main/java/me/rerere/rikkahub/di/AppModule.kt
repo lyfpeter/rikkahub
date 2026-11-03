@@ -122,7 +122,6 @@ val appModule = module {
             conversationRepo = get(),
             requestFactory = get(),
             memoryConsolidationScheduler = get(),
-            translationHandler = get(),
             metaGenerator = get(),
             filesManager = get(),
             folderRepository = get(),

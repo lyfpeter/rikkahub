@@ -62,7 +62,6 @@ class SettingsFieldsTest {
 
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.chatModelId)
         assertEquals(DEFAULT_AUTO_MODEL_ID, settings.fastModelId)
-        assertEquals(DEFAULT_AUTO_MODEL_ID, settings.translateModeId)
         assertEquals(DEFAULT_MODE_INJECTIONS, settings.modeInjections)
         assertEquals(DEFAULT_ASSISTANT_ID, settings.assistantId)
         assertEquals(DEFAULT_SYSTEM_TTS_ID, settings.selectedTTSProviderId)
@@ -120,10 +119,6 @@ private val SAMPLE = Settings(
     imageGenerationModelId = id(3),
     enableAutoTitle = false,
     titlePrompt = "title",
-    translateModeId = id(4),
-    translatePrompt = "translate",
-    translateThinkingBudget = 1024,
-    translateTargetLanguage = "ja",
     enableSuggestion = false,
     suggestionPrompt = "suggestion",
     ocrModelId = id(5),
@@ -164,14 +159,10 @@ private val STORED_KEYS = setOf(
     "fast_model_reasoning_level",
     "memory_model",
     "memory_model_reasoning_level",
-    "translate_model",
     "enable_suggestion",
     "enable_auto_title",
     "image_generation_model",
     "title_prompt",
-    "translation_prompt",
-    "translate_thinking_budget",
-    "translate_target_language",
     "suggestion_prompt",
     "ocr_model",
     "ocr_prompt",
