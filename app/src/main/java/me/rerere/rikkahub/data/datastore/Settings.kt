@@ -21,6 +21,9 @@ import me.rerere.rikkahub.ui.theme.PresetThemes
 import me.rerere.tts.provider.TTSProviderSetting
 import kotlin.uuid.Uuid
 
+/** 连接 lyfclaw 后端的默认服务地址。 */
+const val DEFAULT_LYFCLAW_BASE_URL = "https://lyfclaw.asia"
+
 @Serializable
 data class Settings(
     @Transient
@@ -64,7 +67,7 @@ data class Settings(
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val sponsorAlertDismissedAt: Int = 0,
     // T6: lyfclaw 后端对接配置
-    val lyfclawBaseUrl: String = "",
+    val lyfclawBaseUrl: String = DEFAULT_LYFCLAW_BASE_URL,
     val lyfclawToken: String? = null,
     val lyfclawUsername: String = "",
     /** 当前选用的 lyfclaw bot 标签；为空时自动取后端列表第一个 */

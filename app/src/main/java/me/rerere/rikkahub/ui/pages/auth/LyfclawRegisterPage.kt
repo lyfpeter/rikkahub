@@ -65,7 +65,7 @@ fun LyfclawRegisterPage(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
                 label = { Text("服务地址") },
-                placeholder = { Text("http://your-server:8080") },
+                placeholder = { Text("https://lyfclaw.asia") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
