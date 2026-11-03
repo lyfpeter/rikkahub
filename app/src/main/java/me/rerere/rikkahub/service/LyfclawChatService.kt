@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.Call
@@ -207,8 +208,8 @@ class LyfclawChatService(
                 }
                 "delta" -> {
                     val text = obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
-                    val finish = obj["finish"]?.jsonPrimitive?.contentOrNull == "true"
-                    LyfclawSseEvent.Delta(text)
+                    val transient = obj["transient"]?.jsonPrimitive?.contentOrNull == "true"
+                    LyfclawSseEvent.Delta(text, transient)
                 }
                 "done" -> LyfclawSseEvent.Done(
                     text = obj["text"]?.jsonPrimitive?.contentOrNull ?: "",
@@ -223,7 +224,7 @@ class LyfclawChatService(
                 "node_update" -> {
                     val nodeId = obj["nodeId"]?.jsonPrimitive?.contentOrNull ?: return null
                     val isGenerating = obj["isGenerating"]?.jsonPrimitive?.contentOrNull != "false"
-                    LyfclawSseEvent.NodeUpdate(nodeId, isGenerating)
+                    LyfclawSseEvent.NodeUpdate(nodeId, isGenerating, obj["node"]?.jsonObject)
                 }
                 "snapshot" -> LyfclawSseEvent.Snapshot
                 "tool" -> {
@@ -242,9 +243,18 @@ class LyfclawChatService(
 /** lyfclaw SSE 事件 */
 sealed class LyfclawSseEvent {
     data class Meta(val conversationId: String) : LyfclawSseEvent()
-    data class Delta(val text: String) : LyfclawSseEvent()
+    /** [transient] = 可原地替换的临时进度帧（前端应丢弃，避免残留转圈文本）。 */
+    data class Delta(val text: String, val transient: Boolean = false) : LyfclawSseEvent()
     data class Tool(val toolName: String, val callId: String, val raw: String) : LyfclawSseEvent()
-    data class NodeUpdate(val nodeId: String, val isGenerating: Boolean) : LyfclawSseEvent()
+    /**
+     * 结构化节点快照：`node.messages[].parts[]` 携带 reasoning / tool / text 三类 part，
+     * 由 `ChatService` 映射成 [me.rerere.ai.ui.UIMessagePart] 以渲染 agent 执行过程。
+     */
+    data class NodeUpdate(
+        val nodeId: String,
+        val isGenerating: Boolean,
+        val node: JsonObject?,
+    ) : LyfclawSseEvent()
     object Snapshot : LyfclawSseEvent()
     data class Done(val text: String, val conversationId: String?) : LyfclawSseEvent()
     data class Cancelled(val conversationId: String?) : LyfclawSseEvent()

@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Instant
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.agent.AgentEvent
 import me.rerere.ai.agent.AgentFinishReason
 import me.rerere.ai.agent.RetryAttempt
@@ -789,55 +795,57 @@ class ChatService(
 
             val flow = lyfclawChatService!!.sendMessage(botLabel, text, convId)
             val accumulatedText = StringBuilder()
+            // node_update 是渲染的权威来源（含 reasoning/tool/text parts）。收到过它之后
+            // 就不再拿 delta 拼正文，避免两条路径叠加重复。
+            var lastNodeParts: List<UIMessagePart>? = null
+
+            // 用给定 parts 覆盖末尾的 assistant 占位消息（流开始前已插入）
+            fun renderParts(parts: List<UIMessagePart>) {
+                session.tryUpdate { conv ->
+                    val nodes = conv.messageNodes.toMutableList()
+                    val lastNode = nodes.lastOrNull() ?: return@tryUpdate conv
+                    val msgs = lastNode.messages.toMutableList()
+                    val lastMsg = msgs.lastOrNull() ?: return@tryUpdate conv
+                    if (lastMsg.role != MessageRole.ASSISTANT) return@tryUpdate conv
+                    msgs[msgs.lastIndex] = lastMsg.copy(parts = parts)
+                    nodes[nodes.lastIndex] = lastNode.copy(messages = msgs)
+                    conv.copy(messageNodes = nodes)
+                }
+            }
+
             flow.collect { event ->
                 when (event) {
                     is LyfclawSseEvent.Meta -> {
                         // 记录 conversation_id（后续用于取消等）
                     }
                     is LyfclawSseEvent.Delta -> {
-                        // T7: 逐 token 增量更新 assistant 消息
-                        accumulatedText.append(event.text)
-                        val currentText = accumulatedText.toString()
-                        session.tryUpdate { conv ->
-                            val nodes = conv.messageNodes.toMutableList()
-                            val lastNode = nodes.lastOrNull()
-                            if (lastNode != null) {
-                                val msgs = lastNode.messages.toMutableList()
-                                val lastMsg = msgs.lastOrNull()
-                                if (lastMsg != null && lastMsg.role == MessageRole.ASSISTANT) {
-                                    msgs[msgs.lastIndex] = lastMsg.copy(
-                                        parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(currentText)),
-                                    )
-                                }
-                                nodes[nodes.lastIndex] = lastNode.copy(messages = msgs)
+                        // 临时进度帧（转圈 / 当前步骤提示）可原地替换，不并入正文
+                        if (!event.transient) {
+                            accumulatedText.append(event.text)
+                            // 尚未收到 node_update 时，退化为纯文本流式渲染
+                            if (lastNodeParts == null) {
+                                renderParts(listOf(UIMessagePart.Text(accumulatedText.toString())))
                             }
-                            conv.copy(messageNodes = nodes)
                         }
                     }
                     is LyfclawSseEvent.Tool -> {
-                        // T7: 工具进度事件（当前阶段忽略，后续可展示工具卡片）
+                        // 工具进度由 node_update 承载（结构化 part），此处无需单独处理
                     }
                     is LyfclawSseEvent.NodeUpdate -> {
-                        // T7: 增量节点更新（当前阶段由 Delta 驱动渲染，忽略 node_update）
+                        // agent 执行过程（推理 / 工具卡 / 正文）全部来自 node_update
+                        val parts = mapLyfclawNodeParts(event.node)
+                        if (parts.isNotEmpty()) {
+                            lastNodeParts = parts
+                            renderParts(parts)
+                        }
                     }
                     is LyfclawSseEvent.Done -> {
-                        // 最终文本写入 assistant 消息（优先用 done.text，否则用累积文本）
-                        val finalText = if (event.text.isNotBlank()) event.text else accumulatedText.toString()
-                        session.tryUpdate { conv ->
-                            val nodes = conv.messageNodes.toMutableList()
-                            val lastNode = nodes.lastOrNull()
-                            if (lastNode != null) {
-                                val msgs = lastNode.messages.toMutableList()
-                                val lastMsg = msgs.lastOrNull()
-                                if (lastMsg != null && lastMsg.role == MessageRole.ASSISTANT) {
-                                    msgs[msgs.lastIndex] = lastMsg.copy(
-                                        parts = listOf(me.rerere.ai.ui.UIMessagePart.Text(finalText)),
-                                    )
-                                }
-                                nodes[nodes.lastIndex] = lastNode.copy(messages = msgs)
-                            }
-                            conv.copy(messageNodes = nodes)
-                        }
+                        // 优先用最后一份 node parts；否则退回最终文本
+                        val parts = lastNodeParts?.takeIf { it.isNotEmpty() }
+                            ?: listOf(UIMessagePart.Text(
+                                if (event.text.isNotBlank()) event.text else accumulatedText.toString()
+                            ))
+                        renderParts(parts)
                         session.flush()
                     }
                     is LyfclawSseEvent.Error -> {
@@ -859,6 +867,54 @@ class ChatService(
             reportFailure(session, e, R.string.error_title_send_message)
             return TurnResult.Failed
         }
+    }
+
+    /**
+     * 把 lyfclaw 的 `node_update` 快照里的 assistant 消息 parts 映射成本地 [UIMessagePart]。
+     *
+     * 后端 node 结构：`{ messages: [ { role, parts: [...] } ] }`，
+     * parts 的 `type` 为 text / reasoning / tool，tool 的 output 又是嵌套的 parts 数组。
+     */
+    private fun mapLyfclawNodeParts(node: JsonObject?): List<UIMessagePart> {
+        val messages = node?.get("messages")?.jsonArray ?: return emptyList()
+        val assistant = messages.asReversed()
+            .mapNotNull { it as? JsonObject }
+            .firstOrNull { it["role"]?.jsonPrimitive?.contentOrNull == "assistant" }
+            ?: return emptyList()
+        val parts = assistant["parts"]?.jsonArray ?: return emptyList()
+        return parts.mapNotNull { part -> (part as? JsonObject)?.let(::mapLyfclawPart) }
+    }
+
+    private fun mapLyfclawPart(part: JsonObject): UIMessagePart? =
+        when (part["type"]?.jsonPrimitive?.contentOrNull) {
+            "text" -> UIMessagePart.Text(
+                text = part["text"]?.jsonPrimitive?.contentOrNull ?: "",
+            )
+            "reasoning" -> UIMessagePart.Reasoning(
+                reasoning = part["reasoning"]?.jsonPrimitive?.contentOrNull ?: "",
+                finishedAt = part.parseInstant("finishedAt"),
+            )
+            "tool" -> UIMessagePart.Tool(
+                toolCallId = part["toolCallId"]?.jsonPrimitive?.contentOrNull ?: "",
+                toolName = part["toolName"]?.jsonPrimitive?.contentOrNull ?: "",
+                input = part["input"]?.jsonPrimitive?.contentOrNull ?: "",
+                output = (part["output"]?.jsonArray ?: emptyList())
+                    .mapNotNull { out -> (out as? JsonObject)?.let(::mapLyfclawPart) },
+                approvalState = mapLyfclawApproval(part["approvalState"]?.jsonPrimitive?.contentOrNull),
+            )
+            else -> null
+        }
+
+    private fun JsonObject.parseInstant(key: String): Instant? =
+        this[key]?.jsonPrimitive?.contentOrNull?.let { raw ->
+            runCatching { Instant.parse(raw) }.getOrNull()
+        }
+
+    private fun mapLyfclawApproval(state: String?): ToolApprovalState = when (state) {
+        "pending" -> ToolApprovalState.Pending
+        "approved" -> ToolApprovalState.Approved
+        "denied" -> ToolApprovalState.Denied()
+        else -> ToolApprovalState.Auto
     }
 
     // ---- 生成标题 ----
