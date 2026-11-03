@@ -1,0 +1,21 @@
+app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+  s_ebfa1ea535a6a4::t_8d366e4beda3b3 904
+app/src/main/java/me/rerere/rikkahub/ui/components/message/tools/ToolUI.kt
+  s_ebfa1ea535a6a4::t_8fff7776f63841 68-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "68245bd9460b1ee5bfb2542dcae6320bce9c14b1",
+  "prompts": {},
+  "sessions": {
+    "s_ebfa1ea535a6a4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e017f17f-9392-4e08-8287-ee68d19a094a",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
