@@ -9,7 +9,6 @@ import me.rerere.asr.ASRProviderSetting
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_OCR_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_SUGGESTION_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TITLE_PROMPT
-
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Lorebook
@@ -70,6 +69,8 @@ data class Settings(
     val lyfclawUsername: String = "",
     /** 当前选用的 lyfclaw bot 标签；为空时自动取后端列表第一个 */
     val lyfclawBotLabel: String = "",
+    /** 已启用的第三方 MCP 服务 ID 集合 */
+    val enabledMcpServices: Set<String> = emptySet(),
 ) {
     /** 是否已连接 lyfclaw 后端（用于 ChatService 分流判断） */
     val isLyfclawEnabled: Boolean get() = lyfclawBaseUrl.isNotBlank() && lyfclawToken != null

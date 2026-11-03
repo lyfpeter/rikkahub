@@ -345,11 +345,6 @@ private fun ChatPageContent(
                         vm.stopGeneration()
                     },
                     onSendClick = {
-                        // lyfclaw 模式下由后端选择模型，前端不再要求先选模型
-                        if (currentChatModel == null && !setting.isLyfclawEnabled) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
-                        }
                         if (inputState.isEditing()) {
                             vm.handleMessageEdit(
                                 parts = inputState.getContents(),
@@ -398,8 +393,8 @@ private fun ChatPageContent(
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
-                onRegenerate = {
-                    vm.regenerateAtMessage(it)
+                onRegenerate = { msg ->
+                    vm.regenerateAtMessage(msg)
                 },
                 onEdit = {
                     inputState.editingMessage = it.id

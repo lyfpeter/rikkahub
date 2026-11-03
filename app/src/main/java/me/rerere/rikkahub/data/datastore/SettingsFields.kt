@@ -163,6 +163,9 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
         ),
         plain(LYFCLAW_USERNAME, Settings::lyfclawUsername) { copy(lyfclawUsername = it) },
         plain(LYFCLAW_BOT_LABEL, Settings::lyfclawBotLabel) { copy(lyfclawBotLabel = it) },
+
+        // 第三方 MCP 服务启用状态
+        json(ENABLED_MCP_SERVICES, Settings::enabledMcpServices) { copy(enabledMcpServices = it) },
     )
 }
 

@@ -41,7 +41,6 @@ import me.rerere.rikkahub.data.ai.ChatRequestFactory
 import me.rerere.rikkahub.data.ai.ChatTurnContext
 import me.rerere.rikkahub.data.ai.ConversationMetaGenerator
 import me.rerere.rikkahub.data.ai.MemoryConsolidationScheduler
-
 import me.rerere.rikkahub.data.ai.prompts.buildCompressPrompt
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -68,7 +67,6 @@ import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.model.withAssistantUpdate
 import me.rerere.rikkahub.data.model.withNodeFavorite
 import me.rerere.rikkahub.data.model.withToolApproval
-
 import me.rerere.rikkahub.data.model.withoutConversationFields
 import me.rerere.rikkahub.data.model.withoutUnresumableToolCalls
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -506,6 +504,9 @@ class ChatService(
                     val node = session.state.value.getMessageNodeByMessageId(messageId)
                         ?: return@launchGenerationJob
 
+                    val settings = settingsStore.settingsFlow.value
+                    val isLyfclaw = settings.isLyfclawEnabled && lyfclawChatService != null
+
                     if (node.role == MessageRole.USER) {
                         session.tryUpdate { conversation ->
                             val index = conversation.messageNodes.indexOfFirst { it.id == node.id }
@@ -514,9 +515,25 @@ class ChatService(
                             conversation.copy(messageNodes = conversation.messageNodes.take(index + 1))
                         } ?: return@launchGenerationJob
                         session.flush()
-                        runTurn(session)
+                        if (isLyfclaw) {
+                            runLyfclawTurn(session, node.currentMessage.parts)
+                        } else {
+                            runTurn(session)
+                        }
                     } else {
-                        runTurn(session, regenerateNodeId = node.id)
+                        if (isLyfclaw) {
+                            // lyfclaw 模式下重新生成助手消息：找到它对应的用户消息内容
+                            val conversation = session.state.value
+                            val nodeIndex = conversation.messageNodes.indexOfFirst { it.id == node.id }
+                            val userContent = conversation.messageNodes
+                                .take(nodeIndex)
+                                .lastOrNull { it.role == MessageRole.USER }
+                                ?.currentMessage?.parts
+                                ?: emptyList()
+                            runLyfclawTurn(session, userContent)
+                        } else {
+                            runTurn(session, regenerateNodeId = node.id)
+                        }
                     }
 
                     _generationDoneFlow.emit(conversationId)

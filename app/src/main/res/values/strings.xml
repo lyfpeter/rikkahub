@@ -355,6 +355,13 @@
   <string name="extensions_page_quick_messages_desc">Manage shared quick message templates</string>
   <string name="extensions_page_section_extensions">Extensions</string>
   <string name="extensions_page_title">Extensions</string>
+  <string name="extensions_page_mcp_services">MCP Services</string>
+  <string name="extensions_page_mcp_services_desc">Browse and toggle third-party MCP / Skill services</string>
+  <string name="mcp_services_page_title">MCP Services</string>
+  <string name="mcp_services_page_search_placeholder">Search services</string>
+  <string name="mcp_services_page_search_no_result">No matching services</string>
+  <string name="mcp_services_page_clear_search">Clear</string>
+  <string name="mcp_services_page_view_docs">View docs</string>
   <string name="favorite_page_no_favorites">No favorites yet</string>
   <string name="favorite_page_removed">Favorite removed</string>
   <string name="favorite_page_title">Favorites</string>
