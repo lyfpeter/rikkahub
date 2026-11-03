@@ -901,6 +901,7 @@ class ChatService(
                 output = (part["output"]?.jsonArray ?: emptyList())
                     .mapNotNull { out -> (out as? JsonObject)?.let(::mapLyfclawPart) },
                 approvalState = mapLyfclawApproval(part["approvalState"]?.jsonPrimitive?.contentOrNull),
+                metadata = part["metadata"] as? JsonObject,
             )
             else -> null
         }

@@ -65,8 +65,19 @@ interface ToolUIRenderer {
 
     /** 折叠步骤的标题 */
     @Composable
-    fun title(context: ToolUIContext): String =
-        stringResource(R.string.chat_message_tool_call_generic, context.tool.toolName)
+    fun title(context: ToolUIContext): String {
+        // lyfclaw 等后端会在 metadata.displayName 里带上用户可读的中文标签
+        // （如「执行命令：free -h」），优先展示；否则回退到「调用工具 <name>」。
+        val displayName = context.tool.metadata?.getStringContent("displayName")
+            ?.takeIf { it.isNotBlank() }
+        if (displayName != null) return displayName
+        val name = context.tool.toolName
+        return if (name.isBlank()) {
+            stringResource(R.string.chat_message_tool_call_title)
+        } else {
+            stringResource(R.string.chat_message_tool_call_generic, name)
+        }
+    }
 
     /** 步骤展开时是否显示内联摘要 */
     fun hasSummary(context: ToolUIContext): Boolean = false
