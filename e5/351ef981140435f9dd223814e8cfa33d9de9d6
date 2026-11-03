@@ -1,0 +1,21 @@
+app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+  s_ebfa1ea535a6a4::t_66fcf6b95e4846 27-32,798-815,822-827,832,835-840,843-848,872-919
+app/src/main/java/me/rerere/rikkahub/service/LyfclawChatService.kt
+  s_ebfa1ea535a6a4::t_dc2d1f37d2ccf9 14,211-212,227,246-247,249-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e5351ef981140435f9dd223814e8cfa33d9de9d6",
+  "prompts": {},
+  "sessions": {
+    "s_ebfa1ea535a6a4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e017f17f-9392-4e08-8287-ee68d19a094a",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
