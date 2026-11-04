@@ -37,6 +37,7 @@ import org.koin.compose.koinInject
 fun LyfclawLoginPage(
     onLoginSuccess: () -> Unit,
     onNavigateToRegister: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit,
 ) {
     val authClient: LyfclawAuthClient = koinInject()
     val settingsStore: SettingsStore = koinInject()
@@ -134,6 +135,9 @@ fun LyfclawLoginPage(
 
             TextButton(onClick = onNavigateToRegister) {
                 Text("没有账号？去注册")
+            }
+            TextButton(onClick = onNavigateToForgotPassword) {
+                Text("忘记密码？找回密码")
             }
         }
     }

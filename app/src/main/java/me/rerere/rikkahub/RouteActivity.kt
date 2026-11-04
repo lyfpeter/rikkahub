@@ -120,6 +120,7 @@ import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawLoginPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawRegisterPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawAccountPage
+import me.rerere.rikkahub.ui.pages.auth.LyfclawForgotPasswordPage
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openUsageAccessSettings
@@ -251,16 +252,20 @@ class RouteActivity : ComponentActivity() {
         }
         val migrationState by DatabaseMigrationTracker.state.collectAsStateWithLifecycle()
 
-        val startScreen = Screen.Chat(
-            id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
-                Uuid.random().toString()
-            } else {
-                readStringPreference(
-                    "lastConversationId",
+        val startScreen = if (settings.isLyfclawEnabled) {
+            Screen.Chat(
+                id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
                     Uuid.random().toString()
-                ) ?: Uuid.random().toString()
-            }
-        )
+                } else {
+                    readStringPreference(
+                        "lastConversationId",
+                        Uuid.random().toString()
+                    ) ?: Uuid.random().toString()
+                }
+            )
+        } else {
+            Screen.LyfclawLogin
+        }
 
         val backStack = rememberNavBackStack(startScreen)
         SideEffect {
@@ -490,6 +495,9 @@ class RouteActivity : ComponentActivity() {
                                     onNavigateToRegister = {
                                         backStack.add(Screen.LyfclawRegister)
                                     },
+                                    onNavigateToForgotPassword = {
+                                        backStack.add(Screen.LyfclawForgotPassword)
+                                    },
                                 )
                             }
 
@@ -500,6 +508,14 @@ class RouteActivity : ComponentActivity() {
                                         backStack.add(Screen.Chat(Uuid.random().toString()))
                                     },
                                     onNavigateToLogin = {
+                                        backStack.removeLastOrNull()
+                                    },
+                                )
+                            }
+
+                            entry<Screen.LyfclawForgotPassword> {
+                                LyfclawForgotPasswordPage(
+                                    onBackToLogin = {
                                         backStack.removeLastOrNull()
                                     },
                                 )
@@ -517,8 +533,9 @@ class RouteActivity : ComponentActivity() {
                                         if (backStack.size > 1) {
                                             backStack.removeLastOrNull()
                                         } else {
+                                            // 没有上一页，回到登录页
                                             backStack.clear()
-                                            backStack.add(Screen.Chat(Uuid.random().toString()))
+                                            backStack.add(Screen.LyfclawLogin)
                                         }
                                     },
                                 )
@@ -701,6 +718,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object LyfclawRegister : Screen
+
+    @Serializable
+    data object LyfclawForgotPassword : Screen
 
     @Serializable
     data object LyfclawAccount : Screen

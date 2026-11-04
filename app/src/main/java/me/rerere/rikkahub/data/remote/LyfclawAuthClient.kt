@@ -44,6 +44,24 @@ data class LyfclawPasswordRequest(
     val new_password: String,
 )
 
+@Serializable
+data class LyfclawForgotPasswordRequest(
+    val username: String,
+)
+
+@Serializable
+data class LyfclawForgotPasswordResponse(
+    val ok: Boolean,
+    val reset_code: String? = null,
+)
+
+@Serializable
+data class LyfclawResetPasswordRequest(
+    val username: String,
+    val reset_code: String,
+    val new_password: String,
+)
+
 /**
  * 规整 lyfclaw 服务地址：去首尾空白、缺协议时补 `http://`、去掉结尾的 `/`。
  * 这样用户只填 `192.168.1.7:8000` 也能正常解析，不用担心漏写 scheme。
@@ -132,6 +150,39 @@ class LyfclawAuthClient(
                 throw Exception("Token refresh failed: ${resp.status.value}")
             }
             json.decodeFromString(resp.bodyAsText())
+        }
+    }
+
+    suspend fun forgotPassword(baseUrl: String, username: String): LyfclawForgotPasswordResponse {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            LyfclawForgotPasswordRequest.serializer(),
+            LyfclawForgotPasswordRequest(username),
+        )
+        return httpClient.post("$base/api/app/forgot_password") {
+            contentType(ContentType.Application.Json)
+            setBody(payload)
+        }.let { resp ->
+            if (resp.status.value !in 200..299) {
+                throw Exception("Forgot password failed: ${resp.status.value} ${resp.bodyAsText()}")
+            }
+            json.decodeFromString(resp.bodyAsText())
+        }
+    }
+
+    suspend fun resetPassword(baseUrl: String, username: String, resetCode: String, newPassword: String) {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            LyfclawResetPasswordRequest.serializer(),
+            LyfclawResetPasswordRequest(username, resetCode, newPassword),
+        )
+        httpClient.post("$base/api/app/reset_password") {
+            contentType(ContentType.Application.Json)
+            setBody(payload)
+        }.let { resp ->
+            if (resp.status.value !in 200..299) {
+                throw Exception("Reset password failed: ${resp.status.value} ${resp.bodyAsText()}")
+            }
         }
     }
 }
