@@ -4,7 +4,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -13,6 +16,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.rerere.common.http.SseEvent
+import me.rerere.common.http.sseFlow
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.Call
 import okhttp3.Callback
@@ -195,6 +200,38 @@ class LyfclawChatService(
     }.flowOn(Dispatchers.IO)
 
     /**
+     * 订阅某个会话的后端推送流（`GET /api/app/sessions/{sessionId}/stream`）。
+     *
+     * 首帧是当前全量 `snapshot`（进会话即校准），后续为 `node_update`/`snapshot` 实时帧
+     * ——定时任务等主动投递的结果即由此秒级送达。`sessionId` 是 **scoped** 键
+     * `bot:<bot_id>:conv:<cid>`（来自 `sendMessage` 的 `meta.session_id`），须 URL 编码。
+     *
+     * 连接结束/失败时流会关闭，重连由调用方（`ChatVM`）用 `retry` 决定。
+     */
+    fun subscribeSession(sessionId: String): Flow<LyfclawSseEvent> = flow {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val encoded = java.net.URLEncoder.encode(sessionId, "UTF-8")
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/sessions/$encoded/stream")
+            .get()
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "text/event-stream")
+            .build()
+
+        emitAll(
+            okHttpClient.sseFlow(request).mapNotNull { ev ->
+                when (ev) {
+                    is SseEvent.Event -> parseSseEvent(ev.type ?: "", ev.data)
+                    else -> null
+                }
+            }
+        )
+    }.flowOn(Dispatchers.IO)
+
+    /**
      * 解析单条 SSE 事件的 data 字段（JSON）为 LyfclawSseEvent。
      */
     private fun parseSseEvent(eventType: String, data: String): LyfclawSseEvent? {
@@ -204,7 +241,9 @@ class LyfclawChatService(
             when (type) {
                 "meta" -> {
                     val cid = obj["conversation_id"]?.jsonPrimitive?.contentOrNull
-                    if (cid != null) LyfclawSseEvent.Meta(cid) else null
+                    if (cid != null) {
+                        LyfclawSseEvent.Meta(cid, obj["session_id"]?.jsonPrimitive?.contentOrNull)
+                    } else null
                 }
                 "delta" -> {
                     val text = obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -214,6 +253,7 @@ class LyfclawChatService(
                 "done" -> LyfclawSseEvent.Done(
                     text = obj["text"]?.jsonPrimitive?.contentOrNull ?: "",
                     conversationId = obj["conversation_id"]?.jsonPrimitive?.contentOrNull,
+                    sessionId = obj["session_id"]?.jsonPrimitive?.contentOrNull,
                 )
                 "cancelled" -> LyfclawSseEvent.Cancelled(
                     obj["conversation_id"]?.jsonPrimitive?.contentOrNull
@@ -226,7 +266,7 @@ class LyfclawChatService(
                     val isGenerating = obj["isGenerating"]?.jsonPrimitive?.contentOrNull != "false"
                     LyfclawSseEvent.NodeUpdate(nodeId, isGenerating, obj["node"]?.jsonObject)
                 }
-                "snapshot" -> LyfclawSseEvent.Snapshot
+                "snapshot" -> LyfclawSseEvent.Snapshot(obj)
                 "tool" -> {
                     val toolName = obj["tool_name"]?.jsonPrimitive?.contentOrNull ?: ""
                     val callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -242,7 +282,12 @@ class LyfclawChatService(
 
 /** lyfclaw SSE 事件 */
 sealed class LyfclawSseEvent {
-    data class Meta(val conversationId: String) : LyfclawSseEvent()
+    /**
+     * [conversationId] 是后端返回的**裸**外部会话 id（如 `4010d84e`）；
+     * [sessionId] 是 **scoped** 会话键 `bot:<bot_id>:conv:<cid>`，用于订阅实时推送流
+     * （订阅端点是 `GET /api/app/sessions/{sessionId}/stream`，与发送端点不同）。
+     */
+    data class Meta(val conversationId: String, val sessionId: String? = null) : LyfclawSseEvent()
     /** [transient] = 可原地替换的临时进度帧（前端应丢弃，避免残留转圈文本）。 */
     data class Delta(val text: String, val transient: Boolean = false) : LyfclawSseEvent()
     data class Tool(val toolName: String, val callId: String, val raw: String) : LyfclawSseEvent()
@@ -255,8 +300,13 @@ sealed class LyfclawSseEvent {
         val isGenerating: Boolean,
         val node: JsonObject?,
     ) : LyfclawSseEvent()
-    object Snapshot : LyfclawSseEvent()
-    data class Done(val text: String, val conversationId: String?) : LyfclawSseEvent()
+    /** 全量快照：`payload.conversation.messageNodes[]` 为当前会话的消息树。 */
+    data class Snapshot(val payload: JsonObject?) : LyfclawSseEvent()
+    data class Done(
+        val text: String,
+        val conversationId: String?,
+        val sessionId: String? = null,
+    ) : LyfclawSseEvent()
     data class Cancelled(val conversationId: String?) : LyfclawSseEvent()
     data class Error(val message: String) : LyfclawSseEvent()
 }

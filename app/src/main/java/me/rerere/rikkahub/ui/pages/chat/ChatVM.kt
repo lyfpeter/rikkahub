@@ -95,6 +95,14 @@ class ChatVM(
             chatService.initializeConversation(_conversationId)
         }
 
+        // lyfclaw 模式：打开会话即常驻订阅后端推送流，实时并入定时任务等结果。
+        // 随 viewModelScope 生命周期运行 —— 页面关闭（onCleared）自动取消。
+        viewModelScope.launch {
+            if (settingsStore.awaitLoaded().isLyfclawEnabled) {
+                chatService.subscribeLyfclawPush(_conversationId)
+            }
+        }
+
         // 记住对话ID, 方便下次启动恢复
         context.writeStringPreference("lastConversationId", _conversationId.toString())
     }

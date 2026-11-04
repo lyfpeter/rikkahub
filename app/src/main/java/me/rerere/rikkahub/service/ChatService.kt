@@ -12,6 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.completeWith
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,9 +24,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -816,7 +821,9 @@ class ChatService(
             flow.collect { event ->
                 when (event) {
                     is LyfclawSseEvent.Meta -> {
-                        // 记录 conversation_id（后续用于取消等）
+                        // 持久化 scoped 会话键（订阅实时推送用），并把同步水位推进到当前时刻，
+                        // 避免订阅端把本轮刚发出的回复重复并入
+                        persistLyfclawSession(session, event.sessionId)
                     }
                     is LyfclawSseEvent.Delta -> {
                         // 临时进度帧（转圈 / 当前步骤提示）可原地替换，不并入正文
@@ -846,6 +853,8 @@ class ChatService(
                                 if (event.text.isNotBlank()) event.text else accumulatedText.toString()
                             ))
                         renderParts(parts)
+                        // 回复已渲染到本地，推进水位把它挡在订阅快照之外，防止重复并入
+                        persistLyfclawSession(session, event.sessionId)
                         session.flush()
                     }
                     is LyfclawSseEvent.Error -> {
@@ -917,6 +926,163 @@ class ChatService(
         "denied" -> ToolApprovalState.Denied()
         else -> ToolApprovalState.Auto
     }
+
+    // ---- lyfclaw 实时推送（订阅后端会话流）----
+
+    /**
+     * 常驻订阅 lyfclaw 会话流（`GET /api/app/sessions/{session_id}/stream`），把定时任务等
+     * 后端主动投递的结果**实时**并入本地会话。
+     *
+     * 仅在聊天页打开期间运行：由 [ChatVM] 在 `viewModelScope` 中启动，页面关闭随作用域取消。
+     * 会话键来自 `ConversationConfig.lyfclawSessionId`（由 [persistLyfclawSession] 落库）；
+     * 尚未拿到时轮询等待，拿到后按断线退避自动重连（后端连接自带 keepalive）。
+     */
+    suspend fun subscribeLyfclawPush(conversationId: Uuid) {
+        val svc = lyfclawChatService ?: return
+        while (currentCoroutineContext().isActive) {
+            val sessionId = runCatching {
+                withLoadedSession(conversationId, createIfMissing = false) {
+                    it.state.value.config?.lyfclawSessionId
+                }
+            }.getOrNull()
+            if (sessionId.isNullOrBlank()) {
+                // 会话键还没落库（通常是本机首次发消息前）：稍后再看
+                delay(2_000)
+                continue
+            }
+            try {
+                svc.subscribeSession(sessionId)
+                    .retryWhen { cause, attempt ->
+                        if (cause is CancellationException) return@retryWhen false
+                        Log.w(TAG, "lyfclaw 推送订阅断开，准备重连: ${cause.message}")
+                        delay(reconnectDelayMillis(attempt))
+                        true
+                    }
+                    .collect { event -> applyLyfclawPush(conversationId, event) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "lyfclaw 推送订阅异常: ${e.message}")
+                delay(2_000)
+            }
+        }
+    }
+
+    private fun reconnectDelayMillis(attempt: Long): Long =
+        minOf(30_000L, 1_000L * (1L shl attempt.toInt().coerceAtMost(5)))
+
+    private suspend fun applyLyfclawPush(conversationId: Uuid, event: LyfclawSseEvent) {
+        when (event) {
+            is LyfclawSseEvent.Snapshot ->
+                mergeLyfclawMessages(conversationId, snapshotAssistantCandidates(event.payload))
+            is LyfclawSseEvent.NodeUpdate ->
+                mergeLyfclawMessages(conversationId, nodeAssistantCandidates(event.node))
+            is LyfclawSseEvent.Meta ->
+                withLoadedSession(conversationId, createIfMissing = false) {
+                    persistLyfclawSession(it, event.sessionId)
+                }
+            is LyfclawSseEvent.Done ->
+                withLoadedSession(conversationId, createIfMissing = false) {
+                    persistLyfclawSession(it, event.sessionId)
+                }
+            else -> Unit
+        }
+    }
+
+    /**
+     * 把 scoped 会话键写入 [ConversationConfig]，并把同步水位推进到当前时刻。
+     *
+     * 水位只增不减；推进它可确保「刚在本机发出的回复」不会被订阅快照重复并入。
+     */
+    private suspend fun persistLyfclawSession(session: ConversationSession, sessionId: String?) {
+        val incarnation = session.incarnation
+        val now = nowIso()
+        session.updateMetadata(
+            transform = { conv ->
+                val config = conv.config ?: return@updateMetadata conv
+                conv.copy(config = config.copy(
+                    lyfclawSessionId = sessionId ?: config.lyfclawSessionId,
+                    lyfclawSyncedAt = maxOf(config.lyfclawSyncedAt ?: "", now),
+                ))
+            },
+            persist = conversationRepo::updateConversationConfig,
+            expectedIncarnation = incarnation,
+        )
+    }
+
+    /**
+     * 把后端推送里的 assistant 消息按**高水位**并入本地会话。
+     *
+     * 两端消息 id 体系不一致（后端 `msg_assistant_<n>` / `node_<sid>_<seq>`，本地 Uuid），
+     * 因此只并入 `createdAt` 比 [ConversationConfig.lyfclawSyncedAt] 更新的 assistant 消息，
+     * 并入后把水位推进到其中的最大值。首次（无水位）只校准水位、不追加——本地已是最新。
+     *
+     * 生成中不合并，避免覆盖在途内容；未落库的新会话无可并入，直接跳过。
+     */
+    private suspend fun mergeLyfclawMessages(
+        conversationId: Uuid,
+        candidates: List<Pair<String, UIMessage>>,
+    ) {
+        if (candidates.isEmpty()) return
+        withLoadedSession(conversationId, createIfMissing = false) { session ->
+            if (!session.existsInDatabase) return@withLoadedSession
+            if (session.getJob()?.isActive == true) return@withLoadedSession
+            val incarnation = session.incarnation
+            val watermark = session.state.value.config?.lyfclawSyncedAt
+            val newest = candidates.maxOf { it.first }
+            if (watermark.isNullOrBlank()) {
+                // 首次校准：只记水位，不追加
+                session.updateMetadata(
+                    transform = { conv ->
+                        val config = conv.config ?: return@updateMetadata conv
+                        conv.copy(config = config.copy(lyfclawSyncedAt = newest))
+                    },
+                    persist = conversationRepo::updateConversationConfig,
+                    expectedIncarnation = incarnation,
+                )
+                return@withLoadedSession
+            }
+            val toAdd = candidates.filter { it.first > watermark }.sortedBy { it.first }
+            if (toAdd.isEmpty()) return@withLoadedSession
+            session.updateMetadata(
+                transform = { conv ->
+                    val config = conv.config ?: return@updateMetadata conv
+                    conv.copy(
+                        messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
+                        config = config.copy(lyfclawSyncedAt = maxOf(watermark, newest)),
+                    )
+                },
+                persist = conversationRepo::updateConversation,
+                expectedIncarnation = incarnation,
+            )
+        }
+    }
+
+    /** 从全量快照 payload（`conversation.messageNodes[]`）里收集 assistant 消息候选。 */
+    private fun snapshotAssistantCandidates(payload: JsonObject?): List<Pair<String, UIMessage>> {
+        val nodes = payload?.get("conversation")?.jsonObject?.get("messageNodes")?.jsonArray
+            ?: return emptyList()
+        return nodes.flatMap { nodeAssistantCandidates(it as? JsonObject) }
+    }
+
+    /** 从一个节点（`{ messages: [...] }`）里收集 assistant 消息候选：`createdAt` 字符串 → 本地消息。 */
+    private fun nodeAssistantCandidates(node: JsonObject?): List<Pair<String, UIMessage>> {
+        val messages = node?.get("messages")?.jsonArray ?: return emptyList()
+        return messages.mapNotNull { el ->
+            val msg = el as? JsonObject ?: return@mapNotNull null
+            if (msg["role"]?.jsonPrimitive?.contentOrNull != "assistant") return@mapNotNull null
+            val parts = msg["parts"]?.jsonArray
+                ?.mapNotNull { (it as? JsonObject)?.let(::mapLyfclawPart) }
+                ?: return@mapNotNull null
+            if (parts.isEmpty()) return@mapNotNull null
+            val createdAt = msg["createdAt"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            createdAt to UIMessage(id = Uuid.random(), role = MessageRole.ASSISTANT, parts = parts)
+        }
+    }
+
+    /** 当前 UTC 时刻，秒精度 ISO8601（与后端 `createdAt` 同形，可逐字比较）。 */
+    private fun nowIso(): String =
+        Instant.fromEpochSeconds(Clock.System.now().epochSeconds).toString()
 
     // ---- 生成标题 ----
 

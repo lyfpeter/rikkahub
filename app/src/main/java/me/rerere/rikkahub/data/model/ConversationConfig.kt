@@ -26,6 +26,13 @@ data class ConversationConfig(
     val mcpServers: Set<Uuid> = emptySet(),
     val workspaceId: Uuid? = null,
     val enabledSkills: Set<String> = emptySet(),
+    // ── lyfclaw 后端会话对接（2026-11-04 实时推送）──
+    // 后端 scoped 会话键 `bot:<bot_id>:conv:<cid>`，用于订阅
+    // `GET /api/app/sessions/{id}/stream` 收定时任务等主动推送。null = 尚未拿到。
+    val lyfclawSessionId: String? = null,
+    // 已并入本地会话的后端消息 createdAt 高水位（ISO8601）。只并入比它更新的
+    // assistant 消息，绕开两端消息 id 体系不一致的问题。
+    val lyfclawSyncedAt: String? = null,
 )
 
 // 内置搜索是模型的开关，不在助手上，由调用方另行填入
@@ -70,7 +77,10 @@ fun Conversation.withAssistantUpdate(updated: Assistant, settings: Settings): Co
                 } else {
                     // 内置搜索是模型自身的能力，换模型后跟随新模型的开关
                     settings.findModelById(updated.chatModelId)?.tools?.contains(BuiltInTools.Search) == true
-                }
+                },
+                // 助手侧配置改动不应清掉 lyfclaw 对接字段（会话键 / 同步水位）
+                lyfclawSessionId = config.lyfclawSessionId,
+                lyfclawSyncedAt = config.lyfclawSyncedAt,
             ),
             modeInjectionIds = updated.modeInjectionIds,
             lorebookIds = updated.lorebookIds,
