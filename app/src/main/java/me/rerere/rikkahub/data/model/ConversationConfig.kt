@@ -33,6 +33,8 @@ data class ConversationConfig(
     // 已并入本地会话的后端消息 createdAt 高水位（ISO8601）。只并入比它更新的
     // assistant 消息，绕开两端消息 id 体系不一致的问题。
     val lyfclawSyncedAt: String? = null,
+    // 后端裸 conversation_id（如 "4010d84e"），用于 bot 级推送事件按 conversation_id 分发到对应本地会话。
+    val lyfclawConversationId: String? = null,
 )
 
 // 内置搜索是模型的开关，不在助手上，由调用方另行填入
@@ -81,6 +83,7 @@ fun Conversation.withAssistantUpdate(updated: Assistant, settings: Settings): Co
                 // 助手侧配置改动不应清掉 lyfclaw 对接字段（会话键 / 同步水位）
                 lyfclawSessionId = config.lyfclawSessionId,
                 lyfclawSyncedAt = config.lyfclawSyncedAt,
+                lyfclawConversationId = config.lyfclawConversationId,
             ),
             modeInjectionIds = updated.modeInjectionIds,
             lorebookIds = updated.lorebookIds,

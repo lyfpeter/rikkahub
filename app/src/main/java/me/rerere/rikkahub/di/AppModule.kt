@@ -137,9 +137,9 @@ val appModule = module {
         LyfclawPushManager(
             appScope = get(),
             settingsStore = get(),
-            conversationDAO = get(),
             lazyChatService = lazy { get() },
             context = get(),
+            appEventBus = get(),
         ).also { it.start() }
     }
 

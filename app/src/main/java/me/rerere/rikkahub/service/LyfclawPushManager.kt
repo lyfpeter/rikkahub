@@ -11,48 +11,39 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.data.db.dao.ConversationDAO
-import me.rerere.rikkahub.data.model.ConversationConfig
-import me.rerere.rikkahub.utils.JsonInstant
-import kotlin.uuid.Uuid
+import me.rerere.rikkahub.data.event.AppEvent
+import me.rerere.rikkahub.data.event.AppEventBus
 
 private const val TAG = "LyfclawPushMgr"
 
 /**
- * 管理多个会话的 lyfclaw SSE 后台推送订阅。
+ * Bot 中心化推送管理器：以 bot 为单位订阅 SSE，一条连接收该 bot 下所有会话推送。
  *
- * 进程启动时（DI [createdAtStart][org.koin.dsl.module.createdAtStart]）检查 lyfclaw 状态和用户开关，
- * 启用则启动 [LyfclawPushService] 前台保活 + 为每个有 `lyfclawSessionId` 的会话建立 SSE 订阅。
- * 订阅在 [AppScope] 中运行，不依赖任何 ViewModel 生命周期。
+ * 定时任务消息经后端 send_message → bot 级 session_stream_bus publish → 本 SSE 连接送达。
+ * 事件 payload 携带 conversation_id，按它查找本地会话并 merge。
  *
- * 与 [ChatService.subscribeLyfclawPush]（ChatVM 调用）并行时，[ChatService.mergeLyfclawMessages]
- * 基于高水位 `lyfclawSyncedAt` 去重，多路订阅幂等安全。
+ * 仍保留 per-conversation 的 [checkPendingMessages]（App 启动时一次性拉取积压消息）。
  */
 class LyfclawPushManager(
     private val appScope: AppScope,
     private val settingsStore: SettingsStore,
-    private val conversationDAO: ConversationDAO,
     private val lazyChatService: Lazy<ChatService>,
     private val context: Application,
+    private val appEventBus: AppEventBus,
 ) {
     private val chatService by lazyChatService
-    private val subscriptions = linkedMapOf<Uuid, Job>()
+    private val subscriptions = mutableMapOf<String, Job>() // botLabel → SSE 订阅协程
     private val mutex = Mutex()
 
-    /** 最大并发 SSE 订阅数，超过时不再新建（超出的靠 FCM 或下次打开时 snapshot 补）。 */
-    private val maxSubscriptions = 20
-
-    private var lastLyfclawToken: String? = null
-
-    // App 前后台状态，传给 ChatService 用于决定是否发通知
     private val isForeground = MutableStateFlow(true)
+    private var lastLyfclawToken: String? = null
 
     init {
         appScope.launch {
@@ -68,21 +59,23 @@ class LyfclawPushManager(
         }
     }
 
-    /** 进程启动时调用。 */
     fun start() {
         appScope.launch {
             val settings = settingsStore.awaitLoaded()
             lastLyfclawToken = settings.lyfclawToken
-            if (!settings.isLyfclawEnabled || !settings.lyfclawBackgroundPush) return@launch
+            if (!settings.isLyfclawEnabled) return@launch
 
-            LyfclawPushService.start(context)
-            refreshSubscriptions()
+            // App 启动时检查积压消息
+            checkPendingMessages()
 
-            // 监听开关 + token 变化
+            // 始终启动 bot 级订阅（不依赖 lyfclawBackgroundPush 开关——bot 订阅更轻量）
+            refreshBotSubscriptions()
+
+            // 监听设置变化
             settingsStore.settingsFlow
-                .map { Triple(it.isLyfclawEnabled && it.lyfclawBackgroundPush, it.lyfclawToken, it.lyfclawBackgroundPush) }
+                .map { Triple(it.isLyfclawEnabled, it.lyfclawToken, it.lyfclawBotLabel) }
                 .distinctUntilChanged()
-                .collect { (enabled, token, _) ->
+                .collect { (enabled, token, botLabel) ->
                     val tokenChanged = lastLyfclawToken != null && token != null && lastLyfclawToken != token
                     val loggedOut = lastLyfclawToken != null && token == null
                     lastLyfclawToken = token
@@ -90,108 +83,150 @@ class LyfclawPushManager(
                     when {
                         !enabled -> stopAll()
                         tokenChanged || loggedOut -> {
-                            // 换账号或登出后重新登录：旧 session ID 全部失效，需重建
                             stopAll()
-                            refreshSubscriptions()
+                            refreshBotSubscriptions()
                         }
-                        else -> refreshSubscriptions()
+                        else -> refreshBotSubscriptions()
                     }
                 }
         }
     }
 
-    /** 会话被删除时调用，清理该会话的 SSE 订阅。 */
-    fun onConversationDeleted(conversationId: Uuid) {
-        appScope.launch {
-            mutex.withLock { removeSubscriptionLocked(conversationId) }
-        }
+    /** 会话被删除时调用（保留兼容，bot 级订阅不需要关心单个会话删除）。 */
+    fun onConversationDeleted(conversationId: kotlin.uuid.Uuid) {
+        // bot 级订阅不按会话管理，无需处理
     }
 
-    /** 从 DB 扫描所有有 lyfclawSessionId 的会话，增减订阅。 */
-    private suspend fun refreshSubscriptions() {
-        val configRows = withContext(Dispatchers.IO) {
-            conversationDAO.getConversationsWithLyfclawSession()
-        }
-        // 解析出 (conversationId, lyfclawSessionId) 对
-        val active = configRows.mapNotNull { row ->
-            val convId = runCatching { Uuid.parse(row.id) }.getOrNull() ?: return@mapNotNull null
-            val config = runCatching {
-                JsonInstant.decodeFromString<ConversationConfig>(row.config)
-            }.getOrNull() ?: return@mapNotNull null
-            val sid = config.lyfclawSessionId
-            if (sid.isNullOrBlank()) return@mapNotNull null
-            convId to sid
+    /** 会话获得新的 lyfclawSessionId 时调用（保留兼容）。 */
+    fun onSessionIdUpdated(conversationId: kotlin.uuid.Uuid, sessionId: String?) {
+        // bot 级订阅不依赖 per-conversation session ID，无需处理
+    }
+
+    /** 启动/刷新 bot 级订阅。 */
+    private suspend fun refreshBotSubscriptions() {
+        val settings = settingsStore.settingsFlow.value
+        if (!settings.isLyfclawEnabled) return
+
+        // 获取当前 bot label
+        val botLabel = settings.lyfclawBotLabel
+        if (botLabel.isBlank()) {
+            Log.d(TAG, "refreshBotSubscriptions: no bot label configured")
+            return
         }
 
-        val activeIds = active.map { it.first }.toSet()
+        // 如果开启了后台推送，启动前台 Service
+        if (settings.lyfclawBackgroundPush) {
+            LyfclawPushService.start(context)
+        }
 
         mutex.withLock {
-            // 移除已不需要的订阅
-            subscriptions.keys.filter { it !in activeIds }.forEach { removeSubscriptionLocked(it) }
-            // 添加新订阅（受 maxSubscriptions 限制）
-            active.forEach { (convId, sid) ->
-                if (convId !in subscriptions && subscriptions.size < maxSubscriptions) {
-                    addSubscriptionLocked(convId, sid)
+            // 已订阅该 bot 则跳过
+            if (botLabel in subscriptions) return@withLock
+            Log.i(TAG, "Starting bot-level push subscription for bot=$botLabel")
+            subscriptions[botLabel] = appScope.launch {
+                try {
+                    chatService.subscribeBotPush(
+                        botLabel = botLabel,
+                        isAppInForeground = { isForeground.value },
+                        onPushEvent = { event ->
+                            handleBotPushEvent(botLabel, event)
+                        },
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Bot push subscription failed for $botLabel: ${e.message}")
                 }
             }
         }
     }
 
-    private fun addSubscriptionLocked(conversationId: Uuid, sessionId: String) {
-        if (conversationId in subscriptions) return
-        Log.d(TAG, "Starting background push subscription for conversation $conversationId")
-        // 持有会话引用，防止 idle 回收
-        chatService.addConversationReference(conversationId)
-        subscriptions[conversationId] = appScope.launch {
-            try {
-                chatService.subscribeLyfclawPushInBackground(
-                    conversationId,
-                    sessionId,
-                    isAppInForeground = { isForeground.value },
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Subscription failed for $conversationId: ${e.message}")
+    /** 收到 bot 级推送事件，按 conversation_id 分发到对应本地会话。 */
+    private fun handleBotPushEvent(botLabel: String, event: me.rerere.rikkahub.service.BotPushEvent) {
+        appScope.launch {
+            val convId = event.conversationId
+            if (convId.isNullOrBlank()) return@launch
+
+            // 在本地查找匹配 lyfclawConversationId 的会话
+            val localConvId = chatService.findConversationByLyfclawId(convId)
+            if (localConvId != null) {
+                // 已有会话：拉取 snapshot merge
+                val sessionId = event.sessionId
+                if (sessionId != null) {
+                    chatService.fetchAndMergePendingMessages(
+                        conversationId = localConvId,
+                        sessionId = sessionId,
+                        isAppInForeground = { isForeground.value },
+                        onNewMessage = { preview ->
+                            if (!isForeground.value) {
+                                appEventBus.tryEmit(
+                                    AppEvent.LyfclawPushReceived(
+                                        conversationId = localConvId,
+                                        senderName = botLabel.ifBlank { "lyfclaw" },
+                                        contentPreview = preview,
+                                    )
+                                )
+                            }
+                        },
+                    )
+                }
+            } else {
+                // 未知会话：发通知（用户打开后会发现新消息）
+                if (!isForeground.value) {
+                    appEventBus.tryEmit(
+                        AppEvent.LyfclawPushReceived(
+                            conversationId = kotlin.uuid.Uuid.random(),
+                            senderName = botLabel.ifBlank { "lyfclaw" },
+                            contentPreview = "新消息",
+                        )
+                    )
+                }
             }
         }
     }
 
-    private fun removeSubscriptionLocked(conversationId: Uuid) {
-        subscriptions.remove(conversationId)?.cancel()
-        chatService.removeConversationReference(conversationId)
-        Log.d(TAG, "Removed background push subscription for conversation $conversationId")
+    /** App 启动时检查积压消息（per-conversation snapshot 拉取）。 */
+    private suspend fun checkPendingMessages() {
+        val settings = settingsStore.settingsFlow.value
+        if (!settings.isLyfclawEnabled) return
+
+        appScope.launch {
+            try {
+                chatService.checkAllPendingMessages(
+                    isAppInForeground = { isForeground.value },
+                    onNewMessage = { convId, preview ->
+                        if (!isForeground.value) {
+                            appEventBus.tryEmit(
+                                AppEvent.LyfclawPushReceived(
+                                    conversationId = convId,
+                                    senderName = settings.lyfclawBotLabel.ifBlank { "lyfclaw" },
+                                    contentPreview = preview,
+                                )
+                            )
+                        }
+                    },
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "checkPendingMessages failed: ${e.message}")
+            }
+        }
     }
 
     private fun stopAll() {
         LyfclawPushService.stop(context)
         appScope.launch {
             mutex.withLock {
-                subscriptions.keys.toList().forEach { removeSubscriptionLocked(it) }
+                subscriptions.values.toList().forEach { it.cancel() }
+                subscriptions.clear()
             }
         }
-        Log.d(TAG, "Stopped all background push subscriptions")
-    }
-
-    /**
-     * 会话获得新的 lyfclawSessionId 时调用，及时启动订阅。
-     * 由 [ChatService.applyLyfclawPush] 在收到 meta/done 后触发。
-     */
-    fun onSessionIdUpdated(conversationId: Uuid, sessionId: String?) {
-        if (!settingsStore.settingsFlow.value.let { it.isLyfclawEnabled && it.lyfclawBackgroundPush }) return
-        appScope.launch {
-            if (sessionId.isNullOrBlank()) {
-                mutex.withLock { removeSubscriptionLocked(conversationId) }
-            } else {
-                mutex.withLock {
-                    // 先取消旧订阅再建新的
-                    subscriptions[conversationId]?.cancel()
-                    subscriptions.remove(conversationId)
-                    if (subscriptions.size < maxSubscriptions) {
-                        addSubscriptionLocked(conversationId, sessionId)
-                    }
-                }
-            }
-        }
+        Log.d(TAG, "Stopped all bot push subscriptions")
     }
 }
+
+/** Bot 级推送事件。 */
+data class BotPushEvent(
+    val type: String,
+    val sessionId: String?,
+    val conversationId: String?,
+)

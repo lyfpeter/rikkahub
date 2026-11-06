@@ -232,6 +232,37 @@ class LyfclawChatService(
     }.flowOn(Dispatchers.IO)
 
     /**
+     * Bot 级 SSE 订阅（`GET /api/app/bots/{bot_label}/stream`）。
+     *
+     * 一条连接接收该 bot 下所有会话的定时任务推送。
+     * 事件 payload 携带 `conversation_id` 和 `session_id`，由调用方分发到对应会话。
+     */
+    fun subscribeBot(botLabel: String): Flow<JsonObject> = flow {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val encoded = java.net.URLEncoder.encode(botLabel, "UTF-8")
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/bots/$encoded/stream")
+            .get()
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "text/event-stream")
+            .build()
+
+        emitAll(
+            okHttpClient.sseFlow(request).mapNotNull { ev ->
+                when (ev) {
+                    is SseEvent.Event -> {
+                        runCatching { json.parseToJsonElement(ev.data) as? JsonObject }.getOrNull()
+                    }
+                    else -> null
+                }
+            }
+        )
+    }.flowOn(Dispatchers.IO)
+
+    /**
      * 解析单条 SSE 事件的 data 字段（JSON）为 LyfclawSseEvent。
      */
     private fun parseSseEvent(eventType: String, data: String): LyfclawSseEvent? {

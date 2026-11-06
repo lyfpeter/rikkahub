@@ -291,6 +291,10 @@ class ConversationRepository(
             }
         }
 
+    suspend fun getConversationsWithLyfclawSession(): List<me.rerere.rikkahub.data.db.dao.ConversationConfigRow> {
+        return conversationDAO.getConversationsWithLyfclawSession()
+    }
+
     suspend fun getConversationById(uuid: Uuid): Conversation? {
         val entity = conversationDAO.getConversationById(uuid.toString())
         return if (entity != null) {

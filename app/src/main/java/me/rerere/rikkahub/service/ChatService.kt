@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
@@ -825,9 +826,7 @@ class ChatService(
             flow.collect { event ->
                 when (event) {
                     is LyfclawSseEvent.Meta -> {
-                        // 持久化 scoped 会话键（订阅实时推送用），并把同步水位推进到当前时刻，
-                        // 避免订阅端把本轮刚发出的回复重复并入
-                        persistLyfclawSession(session, event.sessionId)
+                        persistLyfclawSession(session, event.sessionId, event.conversationId)
                     }
                     is LyfclawSseEvent.Delta -> {
                         // 临时进度帧（转圈 / 当前步骤提示）可原地替换，不并入正文
@@ -932,6 +931,160 @@ class ChatService(
     }
 
     // ---- lyfclaw 实时推送（订阅后端会话流）----
+
+    /**
+     * Bot 级常驻 SSE 订阅。一条连接收该 bot 下所有会话的定时任务推送。
+     * 收到 push 事件后通过 [onPushEvent] 回调让调用方分发。
+     */
+    suspend fun subscribeBotPush(
+        botLabel: String,
+        isAppInForeground: () -> Boolean,
+        onPushEvent: (BotPushEvent) -> Unit,
+    ) {
+        val svc = lyfclawChatService ?: return
+        val maxRetries = 10
+        try {
+            svc.subscribeBot(botLabel)
+                .retryWhen { cause, attempt ->
+                    if (cause is CancellationException) return@retryWhen false
+                    val msg = cause.message.orEmpty()
+                    if (msg.contains("401") || msg.contains("403")) {
+                        Log.w(TAG, "lyfclaw bot 推送认证失败，停止重连: $msg")
+                        return@retryWhen false
+                    }
+                    if (attempt >= maxRetries) {
+                        Log.w(TAG, "lyfclaw bot 推送重连次数已达上限 ($maxRetries)，停止")
+                        return@retryWhen false
+                    }
+                    Log.w(TAG, "lyfclaw bot 推送订阅断开 ($attempt/$maxRetries)，准备重连: ${cause.message}")
+                    delay(reconnectDelayMillis(attempt))
+                    true
+                }
+                .collect { obj ->
+                    val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return@collect
+                    if (type == "push") {
+                        onPushEvent(
+                            BotPushEvent(
+                                type = type,
+                                sessionId = obj["session_id"]?.jsonPrimitive?.contentOrNull,
+                                conversationId = obj["conversation_id"]?.jsonPrimitive?.contentOrNull,
+                            )
+                        )
+                    }
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "lyfclaw bot 推送订阅异常: ${e.message}")
+        }
+    }
+
+    /**
+     * 按 lyfclawConversationId 查找本地会话 ID。
+     */
+    suspend fun findConversationByLyfclawId(lyfclawConvId: String): kotlin.uuid.Uuid? {
+        return withContext(Dispatchers.IO) {
+            conversationRepo.getConversationsWithLyfclawSession()
+                .mapNotNull { row ->
+                    val config = runCatching {
+                        me.rerere.rikkahub.utils.JsonInstant.decodeFromString<
+                            me.rerere.rikkahub.data.model.ConversationConfig
+                        >(row.config)
+                    }.getOrNull() ?: return@mapNotNull null
+                    if (config.lyfclawConversationId == lyfclawConvId) {
+                        runCatching { kotlin.uuid.Uuid.parse(row.id) }.getOrNull()
+                    } else null
+                }
+                .firstOrNull()
+        }
+    }
+
+    /**
+     * App 启动时扫描所有有 lyfclawSessionId 的会话，逐个拉取 snapshot 检查积压消息。
+     */
+    suspend fun checkAllPendingMessages(
+        isAppInForeground: () -> Boolean,
+        onNewMessage: (conversationId: kotlin.uuid.Uuid, preview: String) -> Unit,
+    ) {
+        val configRows = withContext(Dispatchers.IO) {
+            conversationRepo.getConversationsWithLyfclawSession()
+        }
+        for (row in configRows) {
+            val convId = runCatching { kotlin.uuid.Uuid.parse(row.id) }.getOrNull() ?: continue
+            val config = runCatching {
+                me.rerere.rikkahub.utils.JsonInstant.decodeFromString<
+                    me.rerere.rikkahub.data.model.ConversationConfig
+                >(row.config)
+            }.getOrNull() ?: continue
+            val sid = config.lyfclawSessionId ?: continue
+
+            appScope.launch {
+                fetchAndMergePendingMessages(
+                    conversationId = convId,
+                    sessionId = sid,
+                    isAppInForeground = isAppInForeground,
+                    onNewMessage = { preview -> onNewMessage(convId, preview) },
+                )
+            }
+        }
+    }
+
+    /**
+     * 一次性拉取会话 snapshot，检测并 merge 积压消息。
+     *
+     * 用于 App 启动时补检进程被杀期间后端落库的定时任务消息。
+     * 连接 SSE → 收到首帧 snapshot → merge → 立即断开。
+     */
+    suspend fun fetchAndMergePendingMessages(
+        conversationId: Uuid,
+        sessionId: String,
+        isAppInForeground: () -> Boolean,
+        onNewMessage: (String) -> Unit,
+    ) {
+        val svc = lyfclawChatService ?: return
+        try {
+            // SSE 首帧是全量 snapshot，取到后立即断开
+            val firstEvent = withTimeoutOrNull(15_000) {
+                svc.subscribeSession(sessionId).first()
+            } ?: return
+
+            when (firstEvent) {
+                is LyfclawSseEvent.Snapshot -> {
+                    val candidates = snapshotAssistantCandidates(firstEvent.payload)
+                    if (candidates.isEmpty()) return
+
+                    // 记录 merge 前的水位，merge 后比较是否有新增
+                    val watermarkBefore = withLoadedSession(conversationId, createIfMissing = false) {
+                        it.state.value.config?.lyfclawSyncedAt
+                    }
+                    mergeLyfclawMessages(conversationId, candidates)
+
+                    // 检查 merge 后是否有新消息（水位推进了 = 有积压被补入）
+                    val watermarkAfter = withLoadedSession(conversationId, createIfMissing = false) {
+                        it.state.value.config?.lyfclawSyncedAt
+                    }
+                    if (watermarkAfter != null && watermarkAfter != watermarkBefore) {
+                        // 取最新一条消息的预览
+                        val newest = candidates.maxByOrNull { it.first }
+                        if (newest != null) {
+                            val preview = newest.second.parts
+                                .filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>()
+                                .joinToString("") { it.text }
+                                .take(100)
+                            if (preview.isNotBlank()) {
+                                onNewMessage(preview)
+                            }
+                        }
+                    }
+                }
+                else -> Unit
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchAndMergePendingMessages failed for $conversationId: ${e.message}")
+        }
+    }
 
     /**
      * 后台常驻订阅：由 [LyfclawPushManager][me.rerere.rikkahub.service.LyfclawPushManager] 在
@@ -1043,7 +1196,7 @@ class ChatService(
                 mergeLyfclawMessages(conversationId, nodeAssistantCandidates(event.node))
             is LyfclawSseEvent.Meta ->
                 withLoadedSession(conversationId, createIfMissing = false) {
-                    persistLyfclawSession(it, event.sessionId)
+                    persistLyfclawSession(it, event.sessionId, event.conversationId)
                 }
             is LyfclawSseEvent.Done ->
                 withLoadedSession(conversationId, createIfMissing = false) {
@@ -1058,7 +1211,7 @@ class ChatService(
      *
      * 水位只增不减；推进它可确保「刚在本机发出的回复」不会被订阅快照重复并入。
      */
-    private suspend fun persistLyfclawSession(session: ConversationSession, sessionId: String?) {
+    private suspend fun persistLyfclawSession(session: ConversationSession, sessionId: String?, conversationId: String? = null) {
         val incarnation = session.incarnation
         val now = nowIso()
         val prevSessionId = session.state.value.config?.lyfclawSessionId
@@ -1068,6 +1221,7 @@ class ChatService(
                 conv.copy(config = config.copy(
                     lyfclawSessionId = sessionId ?: config.lyfclawSessionId,
                     lyfclawSyncedAt = maxOf(config.lyfclawSyncedAt ?: "", now),
+                    lyfclawConversationId = conversationId ?: config.lyfclawConversationId,
                 ))
             },
             persist = conversationRepo::updateConversationConfig,

@@ -269,6 +269,15 @@ class RouteActivity : ComponentActivity() {
         }
 
         val backStack = rememberNavBackStack(startScreen)
+
+        // lyfclaw token 被清除（Session revoked / 手动登出）时自动跳登录页
+        androidx.compose.runtime.LaunchedEffect(settings.isLyfclawEnabled) {
+            if (!settings.isLyfclawEnabled && backStack.none { it is Screen.LyfclawLogin }) {
+                backStack.clear()
+                backStack.add(Screen.LyfclawLogin)
+            }
+        }
+
         SideEffect {
             navStack = backStack
             while (pendingIntents.isNotEmpty()) {

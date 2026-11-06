@@ -37,6 +37,15 @@ class AuthInterceptor(
         if (response.code != 401 || token == null) {
             return response
         }
+        // Session 被 revoke/丢失：refresh 也无济于事，清除 token 让 UI 跳登录页
+        val body = response.peekBody(1024).string()
+        if (body.contains("Session revoked") || body.contains("Session not found")) {
+            response.close()
+            runCatching {
+                runBlocking { settingsStore.update { it.copy(lyfclawToken = null) } }
+            }
+            return chain.proceed(withAuth(request, null))
+        }
         val refreshed = refreshToken(baseUrl, token) ?: return response
         response.close()
         return chain.proceed(withAuth(request, refreshed))
