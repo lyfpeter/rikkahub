@@ -1,0 +1,32 @@
+app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+  s_c2e623da22b346::t_b11d636de61c62 262,354-359
+app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/PropertyEditor.kt
+  s_c2e623da22b346::t_9b9c9849204b20 1,3-4,11,21-22,24-30,32-35,37-41,43-54,56-60,62,66-79,82-134,137-138,143-146,148-157,159-160,162-169,171-238,242
+app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingProviderDetailPage.kt
+  s_c2e623da22b346::t_0462430f8a0a16 135-136
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantPage.kt
+  s_c2e623da22b346::t_9168bba1a5b637 9,13-15,26,38-40,42,44,46,50-58,60-62,64,69-70,72-73,82-89,91-98,100-112,120-133,136-149,152-156,158-165,171-175,177-184,186-199,201-202,205-206,211-218,220-227,229,232-233,235,237-243,247-252,254-271
+  s_c2e623da22b346::t_9d1ad7b81a88a9 274
+app/src/main/java/me/rerere/rikkahub/ui/pages/setting/components/SectionHeader.kt
+  s_c2e623da22b346::t_17cd6c86e44a51 1-69
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantVM.kt
+  s_c2e623da22b346::t_d6609e1d039e80 5,8-9,13-14,17,21-35,38,40-52,56,58-64,69-77,79,81-89,93,95-101,106-112
+.gitignore
+  s_c2e623da22b346::t_b840fae78e7320 13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "efae5830fbfbf93abf883a10236afb53451be7da",
+  "prompts": {},
+  "sessions": {
+    "s_c2e623da22b346": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1a668-7f85-73a5-b3f6-5e784f6a8e6a",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
