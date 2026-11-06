@@ -52,6 +52,7 @@ private const val TAG = "RikkaHubApp"
 const val CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID = "chat_completed"
 const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val MEMORY_DREAM_NOTIFICATION_CHANNEL_ID = "memory_dream"
+const val LYFCLAW_PUSH_NOTIFICATION_CHANNEL_ID = "lyfclaw_push"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
@@ -202,6 +203,12 @@ class RikkaHubApp : Application() {
             .setShowBadge(false)
             .build()
         notificationManager.createNotificationChannel(memoryDreamChannel)
+        val lyfclawPushChannel = NotificationChannelCompat
+            .Builder(LYFCLAW_PUSH_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
+            .setName(getString(R.string.notification_channel_lyfclaw_push))
+            .setVibrationEnabled(true)
+            .build()
+        notificationManager.createNotificationChannel(lyfclawPushChannel)
     }
 
     override fun onTerminate() {

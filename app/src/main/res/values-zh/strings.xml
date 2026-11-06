@@ -422,6 +422,8 @@
   <string name="notification_channel_chat_completed">聊天完成</string>
   <string name="notification_channel_chat_live_update">聊天生成进度</string>
   <string name="notification_channel_web_server">Web服务器</string>
+  <string name="notification_channel_lyfclaw_push">定时任务推送</string>
+  <string name="lyfclaw_push_service_notification_text">正在监听定时任务消息</string>
   <string name="notification_live_update_chip_thinking">思考中</string>
   <string name="notification_live_update_chip_tool">工具</string>
   <string name="notification_live_update_chip_writing">正在书写</string>
@@ -1770,6 +1772,12 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_preferences_notification_floating_window_desc">切到后台时 AI 还在回复，显示一个悬浮图标，点开可查看进度、确认工具调用和快速回复</string>
   <string name="setting_page_preferences_notification_overlay_permission">授予悬浮窗权限</string>
   <string name="setting_page_preferences_notification_overlay_permission_desc">没有权限时不会显示悬浮窗</string>
+  <string name="setting_page_preferences_notification_lyfclaw_push">后台推送</string>
+  <string name="setting_page_preferences_notification_lyfclaw_push_desc">常驻后台服务，接收定时任务消息并弹出通知</string>
+  <string name="setting_page_preferences_notification_battery_optimization">关闭电池优化</string>
+  <string name="setting_page_preferences_notification_battery_optimization_desc">允许应用在后台运行，不受省电模式限制</string>
+  <string name="setting_page_preferences_notification_auto_start">允许自启动（%1$s）</string>
+  <string name="setting_page_preferences_notification_auto_start_desc">在系统设置中授予自启动权限，防止应用在后台被杀死</string>
   <string name="floating_chat_open_conversation">打开对话</string>
   <string name="floating_chat_collapse">收起</string>
   <string name="floating_chat_close">关闭悬浮窗</string>

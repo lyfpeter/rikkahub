@@ -430,6 +430,8 @@
   <string name="notification_channel_chat_completed">Chat Completed</string>
   <string name="notification_channel_chat_live_update">Chat Generation Progress</string>
   <string name="notification_channel_web_server">Web Server</string>
+  <string name="notification_channel_lyfclaw_push">Scheduled Task Push</string>
+  <string name="lyfclaw_push_service_notification_text">Listening for scheduled task messages</string>
   <string name="notification_live_update_chip_thinking">Thinking</string>
   <string name="notification_live_update_chip_tool">Tool</string>
   <string name="notification_live_update_chip_writing">Writing</string>
@@ -1775,6 +1777,12 @@
   <string name="setting_page_preferences_notification_floating_window_desc">When you leave the app while the AI is still replying, show a floating icon. Tap it to check progress, confirm tool calls and reply quickly</string>
   <string name="setting_page_preferences_notification_overlay_permission">Grant overlay permission</string>
   <string name="setting_page_preferences_notification_overlay_permission_desc">The floating window will not appear without this permission</string>
+  <string name="setting_page_preferences_notification_lyfclaw_push">Background push</string>
+  <string name="setting_page_preferences_notification_lyfclaw_push_desc">Keep a background service alive to receive scheduled task messages and show notifications</string>
+  <string name="setting_page_preferences_notification_battery_optimization">Ignore battery optimizations</string>
+  <string name="setting_page_preferences_notification_battery_optimization_desc">Allow the app to run in the background without being restricted by battery saver</string>
+  <string name="setting_page_preferences_notification_auto_start">Allow autostart (%1$s)</string>
+  <string name="setting_page_preferences_notification_auto_start_desc">Grant autostart permission in system settings to prevent the app from being killed in the background</string>
   <string name="floating_chat_open_conversation">Open conversation</string>
   <string name="floating_chat_collapse">Collapse</string>
   <string name="floating_chat_close">Close floating window</string>

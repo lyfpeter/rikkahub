@@ -23,4 +23,11 @@ sealed class AppEvent {
         val senderName: String,
         val contentPreview: String?,
     ) : AppEvent()
+
+    /** lyfclaw 后端定时任务推送到达，由后台 SSE 订阅发出，ChatNotificationManager 消费为本地通知。 */
+    data class LyfclawPushReceived(
+        val conversationId: Uuid,
+        val senderName: String,
+        val contentPreview: String,
+    ) : AppEvent()
 }

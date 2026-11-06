@@ -166,6 +166,9 @@ internal val SETTINGS_FIELDS: List<SettingsField<*, *>> = with(SettingsStore) {
 
         // 第三方 MCP 服务启用状态
         json(ENABLED_MCP_SERVICES, Settings::enabledMcpServices) { copy(enabledMcpServices = it) },
+
+        // lyfclaw 后台推送
+        plain(LYFCLAW_BACKGROUND_PUSH, Settings::lyfclawBackgroundPush) { copy(lyfclawBackgroundPush = it) },
     )
 }
 

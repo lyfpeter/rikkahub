@@ -15,6 +15,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID
+import me.rerere.rikkahub.LYFCLAW_PUSH_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.conversationIntent
 import me.rerere.rikkahub.data.datastore.SettingsStore
@@ -62,6 +63,7 @@ class ChatNotificationManager(
                 when (event) {
                     is AppEvent.ChatGenerationUpdate -> handleGenerationUpdate(event)
                     is AppEvent.ChatGenerationEnded -> handleGenerationEnded(event)
+                    is AppEvent.LyfclawPushReceived -> handleLyfclawPush(event)
                     else -> {}
                 }
             }
@@ -89,6 +91,21 @@ class ChatNotificationManager(
         if (isForeground.value) return
         if (!settingsStore.settingsFlow.value.displaySetting.enableNotificationOnMessageGeneration) return
         sendGenerationDoneNotification(event.conversationId, event.senderName, contentPreview)
+    }
+
+    private fun handleLyfclawPush(event: AppEvent.LyfclawPushReceived) {
+        if (isForeground.value) return
+        context.sendNotification(
+            channelId = LYFCLAW_PUSH_NOTIFICATION_CHANNEL_ID,
+            notificationId = event.conversationId.hashCode()
+        ) {
+            title = event.senderName
+            content = event.contentPreview
+            autoCancel = true
+            category = NotificationCompat.CATEGORY_MESSAGE
+            useBigTextStyle = true
+            contentIntent = getPendingIntent(context, event.conversationId)
+        }
     }
 
     private fun sendGenerationDoneNotification(

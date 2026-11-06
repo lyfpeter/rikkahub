@@ -188,6 +188,9 @@ class SettingsStore internal constructor(
         // 第三方 MCP 服务启用状态
         val ENABLED_MCP_SERVICES = stringPreferencesKey("enabled_mcp_services")
 
+        // lyfclaw 后台推送开关
+        val LYFCLAW_BACKGROUND_PUSH = booleanPreferencesKey("lyfclaw_background_push")
+
         // Uses the same DataStore singleton without starting settings flows or requiring Koin.
         internal suspend fun restoreBeforeInitialization(context: Context, settings: Settings, launchCount: Int) {
             require(!settings.init) { "Cannot restore uninitialized settings" }

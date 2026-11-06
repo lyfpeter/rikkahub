@@ -117,6 +117,8 @@ class ChatService(
     private val folderRepository: FolderRepository,
     // T7: lyfclaw 后端对接（可选，为 null 时走本地 AgentLoop）
     private val lyfclawChatService: LyfclawChatService? = null,
+    // 后台推送管理器——通过 Koin 懒加载避免循环依赖
+    private val lazyPushManager: kotlin.Lazy<LyfclawPushManager>? = null,
 ) {
     /** 一轮生成的结果 */
     private sealed interface TurnResult {
@@ -930,6 +932,50 @@ class ChatService(
     // ---- lyfclaw 实时推送（订阅后端会话流）----
 
     /**
+     * 后台常驻订阅：由 [LyfclawPushManager][me.rerere.rikkahub.service.LyfclawPushManager] 在
+     * AppScope 中调用，不依赖 viewModelScope，进程存活期间持续收推送。
+     *
+     * 已知 [sessionId]，无需轮询等待。与 [subscribeLyfclawPush] 共享 [applyLyfclawPush] /
+     * [mergeLyfclawMessages]，基于 [ConversationConfig.lyfclawSyncedAt] 高水位去重，多路订阅幂等安全。
+     * 收到 [LyfclawSseEvent.Done] 且 App 在后台时，通过 [AppEventBus] 发出通知事件。
+     */
+    suspend fun subscribeLyfclawPushInBackground(
+        conversationId: Uuid,
+        sessionId: String,
+        isAppInForeground: () -> Boolean,
+    ) {
+        val svc = lyfclawChatService ?: return
+        try {
+            svc.subscribeSession(sessionId)
+                .retryWhen { cause, attempt ->
+                    if (cause is CancellationException) return@retryWhen false
+                    Log.w(TAG, "lyfclaw 后台推送订阅断开，准备重连: ${cause.message}")
+                    delay(reconnectDelayMillis(attempt))
+                    true
+                }
+                .collect { event ->
+                    applyLyfclawPush(conversationId, event)
+                    if (event is LyfclawSseEvent.Done && !isAppInForeground()) {
+                        val preview = event.text.take(100)
+                        if (preview.isNotBlank()) {
+                            appEventBus.tryEmit(
+                                AppEvent.LyfclawPushReceived(
+                                    conversationId = conversationId,
+                                    senderName = settingsStore.settingsFlow.value.lyfclawBotLabel.ifBlank { "lyfclaw" },
+                                    contentPreview = preview,
+                                )
+                            )
+                        }
+                    }
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "lyfclaw 后台推送订阅异常: ${e.message}")
+        }
+    }
+
+    /**
      * 常驻订阅 lyfclaw 会话流（`GET /api/app/sessions/{session_id}/stream`），把定时任务等
      * 后端主动投递的结果**实时**并入本地会话。
      *
@@ -997,6 +1043,7 @@ class ChatService(
     private suspend fun persistLyfclawSession(session: ConversationSession, sessionId: String?) {
         val incarnation = session.incarnation
         val now = nowIso()
+        val prevSessionId = session.state.value.config?.lyfclawSessionId
         session.updateMetadata(
             transform = { conv ->
                 val config = conv.config ?: return@updateMetadata conv
@@ -1008,6 +1055,11 @@ class ChatService(
             persist = conversationRepo::updateConversationConfig,
             expectedIncarnation = incarnation,
         )
+        // 通知后台推送管理器：sessionId 变更时及时更新订阅
+        val newSessionId = sessionId ?: prevSessionId
+        if (newSessionId != null && newSessionId != prevSessionId) {
+            lazyPushManager?.value?.onSessionIdUpdated(session.state.value.id, newSessionId)
+        }
     }
 
     /**

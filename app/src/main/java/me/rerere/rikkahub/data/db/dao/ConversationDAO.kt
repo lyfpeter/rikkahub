@@ -141,6 +141,10 @@ interface ConversationDAO {
     @Query("SELECT COUNT(*) FROM conversationentity")
     suspend fun countAll(): Int
 
+    /** config 列中包含 lyfclawSessionId（即曾通过 lyfclaw 发过消息）的会话 id + config 列表。 */
+    @Query("SELECT id, config FROM conversationentity WHERE config LIKE '%lyfclawSessionId%' AND config LIKE '%bot:%' ORDER BY update_at DESC")
+    suspend fun getConversationsWithLyfclawSession(): List<ConversationConfigRow>
+
     @Query("SELECT assistant_id AS assistantId, COUNT(*) AS count FROM conversationentity GROUP BY assistant_id")
     suspend fun countByAssistant(): List<AssistantConversationCount>
 
@@ -155,5 +159,8 @@ interface ConversationDAO {
 }
 
 data class ConversationDayCount(val day: String, val count: Int)
+
+/** 仅含 id 和 config JSON，用于后台推送扫描。 */
+data class ConversationConfigRow(val id: String, val config: String)
 
 data class AssistantConversationCount(val assistantId: String, val count: Int)

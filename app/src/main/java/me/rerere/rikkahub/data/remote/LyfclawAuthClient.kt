@@ -185,4 +185,30 @@ class LyfclawAuthClient(
             }
         }
     }
+
+    suspend fun registerDevice(baseUrl: String, token: String, fcmToken: String) {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        httpClient.post("$base/api/app/devices/register") {
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer $token")
+            setBody("""{"token":"$fcmToken","platform":"android"}""")
+        }.let { resp ->
+            if (resp.status.value !in 200..299) {
+                throw Exception("Device register failed: ${resp.status.value}")
+            }
+        }
+    }
+
+    suspend fun unregisterDevice(baseUrl: String, token: String, fcmToken: String) {
+        val base = normalizeLyfclawBaseUrl(baseUrl)
+        httpClient.post("$base/api/app/devices/unregister") {
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer $token")
+            setBody("""{"token":"$fcmToken"}""")
+        }.let { resp ->
+            if (resp.status.value !in 200..299) {
+                throw Exception("Device unregister failed: ${resp.status.value}")
+            }
+        }
+    }
 }

@@ -74,6 +74,11 @@ data class Settings(
     val lyfclawBotLabel: String = "",
     /** 已启用的第三方 MCP 服务 ID 集合 */
     val enabledMcpServices: Set<String> = emptySet(),
+    /**
+     * lyfclaw 后台推送：启用后常驻前台 Service 维持 SSE 连接，
+     * 后台也能收到定时任务消息并弹出通知。需要 lyfclaw 已启用。
+     */
+    val lyfclawBackgroundPush: Boolean = false,
 ) {
     /** 是否已连接 lyfclaw 后端（用于 ChatService 分流判断） */
     val isLyfclawEnabled: Boolean get() = lyfclawBaseUrl.isNotBlank() && lyfclawToken != null

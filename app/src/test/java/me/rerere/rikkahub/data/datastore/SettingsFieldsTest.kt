@@ -145,6 +145,8 @@ private val SAMPLE = Settings(
     lyfclawToken = "token",
     lyfclawUsername = "user",
     lyfclawBotLabel = "bot",
+    enabledMcpServices = setOf("mcp1"),
+    lyfclawBackgroundPush = true,
 )
 
 private val STORED_KEYS = setOf(
@@ -188,4 +190,6 @@ private val STORED_KEYS = setOf(
     "lyfclaw_token",
     "lyfclaw_username",
     "lyfclaw_bot_label",
+    "enabled_mcp_services",
+    "lyfclaw_background_push",
 )

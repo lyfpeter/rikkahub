@@ -12,6 +12,8 @@ import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.service.ChatFloatingTracker
 import me.rerere.rikkahub.service.ChatNotificationManager
 import me.rerere.rikkahub.service.ChatService
+import me.rerere.rikkahub.service.FcmTokenManager
+import me.rerere.rikkahub.service.LyfclawPushManager
 import me.rerere.rikkahub.ui.floating.ChatFloatingWindows
 import me.rerere.rikkahub.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
@@ -126,6 +128,27 @@ val appModule = module {
             filesManager = get(),
             folderRepository = get(),
             lyfclawChatService = get(),
+            lazyPushManager = lazy { get<LyfclawPushManager>() },
         )
+    }
+
+    // lyfclaw 后台推送：进程启动即检查开关并启动常驻订阅
+    single(createdAtStart = true) {
+        LyfclawPushManager(
+            appScope = get(),
+            settingsStore = get(),
+            conversationDAO = get(),
+            lazyChatService = lazy { get() },
+            context = get(),
+        ).also { it.start() }
+    }
+
+    // FCM token 注册：进程启动时检查 lyfclaw 登录状态并注册 FCM token
+    single(createdAtStart = true) {
+        FcmTokenManager(
+            appScope = get(),
+            settingsStore = get(),
+            authClient = get(),
+        ).also { it.start() }
     }
 }

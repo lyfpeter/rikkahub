@@ -36,6 +36,10 @@ import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.DisplaySetting
+import me.rerere.rikkahub.utils.RomBrand
+import me.rerere.rikkahub.utils.isIgnoringBatteryOptimizations
+import me.rerere.rikkahub.utils.openAutoStartSettings
+import me.rerere.rikkahub.utils.requestIgnoreBatteryOptimizations
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.ConnectedChoiceButtons
@@ -77,9 +81,11 @@ fun SettingPreferencesNotificationPage(vm: SettingVM = koinViewModel()) {
 
     val context = LocalContext.current
     var canDrawOverlays by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var batteryOptimized by remember { mutableStateOf(!context.isIgnoringBatteryOptimizations()) }
     // 从系统设置页授权回来后刷新
     LifecycleResumeEffect(Unit) {
         canDrawOverlays = Settings.canDrawOverlays(context)
+        batteryOptimized = !context.isIgnoringBatteryOptimizations()
         onPauseOrDispose {}
     }
 
@@ -183,6 +189,52 @@ fun SettingPreferencesNotificationPage(vm: SettingVM = koinViewModel()) {
                                 Icon(HugeIcons.ArrowRight01, contentDescription = null)
                             },
                         )
+                    }
+                }
+            }
+            // lyfclaw 后台推送开关（仅 lyfclaw 已启用时显示）
+            if (settings.isLyfclawEnabled) {
+                item {
+                    CardGroup(title = { Text("lyfclaw") }) {
+                        switchItem(
+                            checked = settings.lyfclawBackgroundPush,
+                            onCheckedChange = { value ->
+                                if (value && !permissionState.allPermissionsGranted) {
+                                    permissionState.requestPermissions()
+                                }
+                                vm.updateSettings { it.copy(lyfclawBackgroundPush = value) }
+                            },
+                            supportingContent = { Text(stringResource(R.string.setting_page_preferences_notification_lyfclaw_push_desc)) },
+                            headlineContent = { Text(stringResource(R.string.setting_page_preferences_notification_lyfclaw_push)) },
+                        )
+                        if (settings.lyfclawBackgroundPush) {
+                            // 电池优化白名单
+                            if (batteryOptimized) {
+                                item(
+                                    onClick = { context.requestIgnoreBatteryOptimizations() },
+                                    headlineContent = { Text(stringResource(R.string.setting_page_preferences_notification_battery_optimization)) },
+                                    supportingContent = { Text(stringResource(R.string.setting_page_preferences_notification_battery_optimization_desc)) },
+                                    trailingContent = {
+                                        Icon(HugeIcons.ArrowRight01, contentDescription = null)
+                                    },
+                                )
+                            }
+                            // 国产 ROM 自启动管理
+                            if (RomBrand.isChineseRom) {
+                                item(
+                                    onClick = { context.openAutoStartSettings() },
+                                    headlineContent = {
+                                        Text(stringResource(R.string.setting_page_preferences_notification_auto_start, RomBrand.displayName))
+                                    },
+                                    supportingContent = {
+                                        Text(stringResource(R.string.setting_page_preferences_notification_auto_start_desc))
+                                    },
+                                    trailingContent = {
+                                        Icon(HugeIcons.ArrowRight01, contentDescription = null)
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
