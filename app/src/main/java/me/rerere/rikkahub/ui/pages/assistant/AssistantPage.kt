@@ -70,7 +70,7 @@ fun AssistantPage(
                 navigationIcon = { if (showBack) BackButton() },
                 actions = {
                     IconButton(onClick = { showCreateSheet = true }) {
-                        Icon(HugeIcons.Add01, contentDescription = "Create Bot")
+                        Icon(HugeIcons.Add01, contentDescription = stringResource(R.string.assistant_page_bot_create))
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -95,7 +95,7 @@ fun AssistantPage(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(error!!, color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { vm.fetchBots() }) { Text("Retry") }
+                    TextButton(onClick = { vm.fetchBots() }) { Text(stringResource(R.string.assistant_page_bot_retry)) }
                 }
             }
             else -> {
@@ -120,7 +120,7 @@ fun AssistantPage(
     // 创建 Bot 表单
     if (showCreateSheet) {
         BotEditSheet(
-            title = "New Bot",
+            title = stringResource(R.string.assistant_page_bot_new_title),
             initialLabel = "",
             initialDisplayName = "",
             initialSystemPrompt = "",
@@ -136,7 +136,7 @@ fun AssistantPage(
     // 编辑 Bot（重命名）
     editingBot?.let { bot ->
         BotEditSheet(
-            title = "Edit Bot",
+            title = stringResource(R.string.assistant_page_bot_edit_title),
             initialLabel = bot.label,
             initialDisplayName = bot.displayName,
             initialSystemPrompt = "",
@@ -156,11 +156,11 @@ fun AssistantPage(
             onDismissRequest = { menuBot = null },
         ) {
             DropdownMenuItem(
-                text = { Text("Rename") },
+                text = { Text(stringResource(R.string.assistant_page_bot_rename)) },
                 onClick = { editingBot = bot; menuBot = null },
             )
             DropdownMenuItem(
-                text = { Text("Delete") },
+                text = { Text(stringResource(R.string.delete)) },
                 onClick = { vm.deleteBot(bot.label); menuBot = null },
             )
         }
@@ -196,7 +196,7 @@ private fun BotItem(
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onMore) {
-                        Icon(HugeIcons.MoreVertical, contentDescription = "More")
+                        Icon(HugeIcons.MoreVertical, contentDescription = stringResource(R.string.assistant_page_bot_more))
                     }
                     if (isSelected) {
                         Text("✓", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -238,7 +238,7 @@ private fun BotEditSheet(
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Label (unique identifier)") },
+                    label = { Text(stringResource(R.string.assistant_page_bot_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -247,7 +247,7 @@ private fun BotEditSheet(
             OutlinedTextField(
                 value = displayName,
                 onValueChange = { displayName = it },
-                label = { Text("Display Name") },
+                label = { Text(stringResource(R.string.assistant_page_bot_display_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -255,7 +255,7 @@ private fun BotEditSheet(
             OutlinedTextField(
                 value = systemPrompt,
                 onValueChange = { systemPrompt = it },
-                label = { Text("System Prompt (角色设定)") },
+                label = { Text(stringResource(R.string.assistant_page_bot_system_prompt)) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 300.dp),
             )
 
@@ -263,11 +263,11 @@ private fun BotEditSheet(
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 TextButton(
                     onClick = { onSave(label.trim(), displayName.trim(), systemPrompt.trim()) },
                     enabled = if (isCreate) label.isNotBlank() else true,
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.save)) }
             }
         }
     }

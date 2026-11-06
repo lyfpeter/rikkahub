@@ -1799,4 +1799,14 @@
   <string name="setting_model_page_memory_model">Memory Consolidation Model</string>
   <string name="setting_model_page_memory_model_desc">Model used to organize conversations into long-term memory in the background; uses the fast model when not set</string>
   <string name="setting_model_page_memory_model_follow_fast">Same as fast model</string>
+  <string name="save">Save</string>
+  <string name="assistant_page_bot_create">Create Bot</string>
+  <string name="assistant_page_bot_new_title">New Bot</string>
+  <string name="assistant_page_bot_edit_title">Edit Bot</string>
+  <string name="assistant_page_bot_rename">Rename</string>
+  <string name="assistant_page_bot_more">More</string>
+  <string name="assistant_page_bot_retry">Retry</string>
+  <string name="assistant_page_bot_label">Label (unique identifier)</string>
+  <string name="assistant_page_bot_display_name">Display Name</string>
+  <string name="assistant_page_bot_system_prompt">System Prompt</string>
 </resources>

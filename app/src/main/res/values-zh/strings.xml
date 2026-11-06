@@ -1794,4 +1794,14 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_model_page_memory_model">记忆整理模型</string>
   <string name="setting_model_page_memory_model_desc">用于在后台将对话整理为长期记忆的模型；未设置时使用快速模型</string>
   <string name="setting_model_page_memory_model_follow_fast">跟随快速模型</string>
+  <string name="save">保存</string>
+  <string name="assistant_page_bot_create">创建助手</string>
+  <string name="assistant_page_bot_new_title">新建助手</string>
+  <string name="assistant_page_bot_edit_title">编辑助手</string>
+  <string name="assistant_page_bot_rename">重命名</string>
+  <string name="assistant_page_bot_more">更多</string>
+  <string name="assistant_page_bot_retry">重试</string>
+  <string name="assistant_page_bot_label">标识（唯一）</string>
+  <string name="assistant_page_bot_display_name">显示名称</string>
+  <string name="assistant_page_bot_system_prompt">系统提示词（角色设定）</string>
 </resources>

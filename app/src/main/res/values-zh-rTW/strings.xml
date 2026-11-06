@@ -1781,4 +1781,14 @@
   <string name="setting_model_page_memory_model">記憶整理模型</string>
   <string name="setting_model_page_memory_model_desc">用於在背景將對話整理為長期記憶的模型；未設定時會使用快速模型</string>
   <string name="setting_model_page_memory_model_follow_fast">跟隨快速模型</string>
+  <string name="save">儲存</string>
+  <string name="assistant_page_bot_create">建立助手</string>
+  <string name="assistant_page_bot_new_title">新增助手</string>
+  <string name="assistant_page_bot_edit_title">編輯助手</string>
+  <string name="assistant_page_bot_rename">重新命名</string>
+  <string name="assistant_page_bot_more">更多</string>
+  <string name="assistant_page_bot_retry">重試</string>
+  <string name="assistant_page_bot_label">標識（唯一）</string>
+  <string name="assistant_page_bot_display_name">顯示名稱</string>
+  <string name="assistant_page_bot_system_prompt">系統提示詞（角色設定）</string>
 </resources>
