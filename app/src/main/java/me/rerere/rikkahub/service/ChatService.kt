@@ -945,11 +945,22 @@ class ChatService(
         isAppInForeground: () -> Boolean,
     ) {
         val svc = lyfclawChatService ?: return
+        val maxRetries = 10
         try {
             svc.subscribeSession(sessionId)
                 .retryWhen { cause, attempt ->
                     if (cause is CancellationException) return@retryWhen false
-                    Log.w(TAG, "lyfclaw 后台推送订阅断开，准备重连: ${cause.message}")
+                    // 401/403 = 认证失败（token 过期/换账号），不再重试
+                    val msg = cause.message.orEmpty()
+                    if (msg.contains("401") || msg.contains("403")) {
+                        Log.w(TAG, "lyfclaw 后台推送认证失败，停止重连: $msg")
+                        return@retryWhen false
+                    }
+                    if (attempt >= maxRetries) {
+                        Log.w(TAG, "lyfclaw 后台推送重连次数已达上限 ($maxRetries)，停止: $conversationId")
+                        return@retryWhen false
+                    }
+                    Log.w(TAG, "lyfclaw 后台推送订阅断开 ($attempt/$maxRetries)，准备重连: ${cause.message}")
                     delay(reconnectDelayMillis(attempt))
                     true
                 }
@@ -1067,9 +1078,14 @@ class ChatService(
      *
      * 两端消息 id 体系不一致（后端 `msg_assistant_<n>` / `node_<sid>_<seq>`，本地 Uuid），
      * 因此只并入 `createdAt` 比 [ConversationConfig.lyfclawSyncedAt] 更新的 assistant 消息，
-     * 并入后把水位推进到其中的最大值。首次（无水位）只校准水位、不追加——本地已是最新。
+     * 并入后把水位推进到其中的最大值。
      *
-     * 生成中不合并，避免覆盖在途内容；未落库的新会话无可并入，直接跳过。
+     * - 首次（无水位）：用 snapshot 中最早的 assistant createdAt 校准水位。
+     *   如果 snapshot 中有消息比本地最后一条 assistant 消息更新，则追加它们
+     *   （覆盖离线期间积压的定时任务消息场景）。
+     * - 生成中：把候选暂存到 pending 队列，等生成结束后自动重试合并，
+     *   避免覆盖在途内容的同时不让推送丢失。
+     * - 未落库的新会话无可并入，直接跳过。
      */
     private suspend fun mergeLyfclawMessages(
         conversationId: Uuid,
@@ -1078,12 +1094,55 @@ class ChatService(
         if (candidates.isEmpty()) return
         withLoadedSession(conversationId, createIfMissing = false) { session ->
             if (!session.existsInDatabase) return@withLoadedSession
-            if (session.getJob()?.isActive == true) return@withLoadedSession
-            val incarnation = session.incarnation
-            val watermark = session.state.value.config?.lyfclawSyncedAt
-            val newest = candidates.maxOf { it.first }
-            if (watermark.isNullOrBlank()) {
-                // 首次校准：只记水位，不追加
+            // 生成中：暂存候选，生成结束后重试
+            if (session.getJob()?.isActive == true) {
+                session.pendingLyfclawMerge.addAll(candidates)
+                session.generationJob.value?.invokeOnCompletion {
+                    appScope.launch {
+                        val pending = session.drainPendingLyfclawMerge()
+                        if (pending.isNotEmpty()) {
+                            mergeLyfclawMessages(conversationId, pending)
+                        }
+                    }
+                }
+                return@withLoadedSession
+            }
+            doMergeLyfclawMessages(conversationId, session, candidates)
+        }
+    }
+
+    private suspend fun doMergeLyfclawMessages(
+        conversationId: Uuid,
+        session: ConversationSession,
+        candidates: List<Pair<String, UIMessage>>,
+    ) {
+        val incarnation = session.incarnation
+        val watermark = session.state.value.config?.lyfclawSyncedAt
+        val newest = candidates.maxOf { it.first }
+        if (watermark.isNullOrBlank()) {
+            // 首次校准：检查 snapshot 中是否有比本地更新的消息
+            val localLastAssistantTs = localLastAssistantCreatedAt(session)
+            if (localLastAssistantTs != null) {
+                val toAdd = candidates.filter { it.first > localLastAssistantTs }.sortedBy { it.first }
+                session.updateMetadata(
+                    transform = { conv ->
+                        val config = conv.config ?: return@updateMetadata conv
+                        if (toAdd.isEmpty()) {
+                            conv.copy(config = config.copy(lyfclawSyncedAt = newest))
+                        } else {
+                            conv.copy(
+                                messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
+                                config = config.copy(lyfclawSyncedAt = maxOf(newest, localLastAssistantTs)),
+                            )
+                        }
+                    },
+                    persist = if (candidates.any { it.first > localLastAssistantTs })
+                        conversationRepo::updateConversation
+                    else conversationRepo::updateConversationConfig,
+                    expectedIncarnation = incarnation,
+                )
+            } else {
+                // 无本地 assistant 消息：只校准水位
                 session.updateMetadata(
                     transform = { conv ->
                         val config = conv.config ?: return@updateMetadata conv
@@ -1092,22 +1151,34 @@ class ChatService(
                     persist = conversationRepo::updateConversationConfig,
                     expectedIncarnation = incarnation,
                 )
-                return@withLoadedSession
             }
-            val toAdd = candidates.filter { it.first > watermark }.sortedBy { it.first }
-            if (toAdd.isEmpty()) return@withLoadedSession
-            session.updateMetadata(
-                transform = { conv ->
-                    val config = conv.config ?: return@updateMetadata conv
-                    conv.copy(
-                        messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
-                        config = config.copy(lyfclawSyncedAt = maxOf(watermark, newest)),
-                    )
-                },
-                persist = conversationRepo::updateConversation,
-                expectedIncarnation = incarnation,
-            )
+            return
         }
+        val toAdd = candidates.filter { it.first > watermark }.sortedBy { it.first }
+        if (toAdd.isEmpty()) return
+        session.updateMetadata(
+            transform = { conv ->
+                val config = conv.config ?: return@updateMetadata conv
+                conv.copy(
+                    messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
+                    config = config.copy(lyfclawSyncedAt = maxOf(watermark, newest)),
+                )
+            },
+            persist = conversationRepo::updateConversation,
+            expectedIncarnation = incarnation,
+        )
+    }
+
+    /**
+     * 本地会话中最后一条 assistant 消息的 createdAt（秒精度 ISO8601），
+     * 用于首次水位校准时判断是否需要追加离线积压消息。
+     */
+    private fun localLastAssistantCreatedAt(session: ConversationSession): String? {
+        return session.state.value.messageNodes
+            .flatMap { it.messages }
+            .filter { it.role == MessageRole.ASSISTANT }
+            .maxOfOrNull { it.createdAt?.toString() ?: "" }
+            ?.takeIf { it.isNotBlank() }
     }
 
     /** 从全量快照 payload（`conversation.messageNodes[]`）里收集 assistant 消息候选。 */
@@ -1491,6 +1562,8 @@ class ChatService(
      * 还停在这个会话上的页面看到的是空会话，之后再发消息会新建记录，不会写回已删除的那条。
      */
     suspend fun deleteConversation(conversationId: Uuid) {
+        // 通知后台推送管理器清理该会话的 SSE 订阅
+        lazyPushManager?.value?.onConversationDeleted(conversationId)
         val session = sessionManager.getOrCreate(conversationId)
         discardQueuedMessages(session)
         session.replace(newConversation(conversationId), existsInDatabase = false) { previous ->

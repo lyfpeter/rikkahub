@@ -43,8 +43,13 @@ class LyfclawPushManager(
     private val context: Application,
 ) {
     private val chatService by lazyChatService
-    private val subscriptions = mutableMapOf<Uuid, Job>()
+    private val subscriptions = linkedMapOf<Uuid, Job>()
     private val mutex = Mutex()
+
+    /** 最大并发 SSE 订阅数，超过时不再新建（超出的靠 FCM 或下次打开时 snapshot 补）。 */
+    private val maxSubscriptions = 20
+
+    private var lastLyfclawToken: String? = null
 
     // App 前后台状态，传给 ChatService 用于决定是否发通知
     private val isForeground = MutableStateFlow(true)
@@ -67,22 +72,38 @@ class LyfclawPushManager(
     fun start() {
         appScope.launch {
             val settings = settingsStore.awaitLoaded()
+            lastLyfclawToken = settings.lyfclawToken
             if (!settings.isLyfclawEnabled || !settings.lyfclawBackgroundPush) return@launch
 
             LyfclawPushService.start(context)
             refreshSubscriptions()
 
-            // 监听开关变化
+            // 监听开关 + token 变化
             settingsStore.settingsFlow
-                .map { it.isLyfclawEnabled && it.lyfclawBackgroundPush }
+                .map { Triple(it.isLyfclawEnabled && it.lyfclawBackgroundPush, it.lyfclawToken, it.lyfclawBackgroundPush) }
                 .distinctUntilChanged()
-                .collect { enabled ->
-                    if (enabled) {
-                        refreshSubscriptions()
-                    } else {
-                        stopAll()
+                .collect { (enabled, token, _) ->
+                    val tokenChanged = lastLyfclawToken != null && token != null && lastLyfclawToken != token
+                    val loggedOut = lastLyfclawToken != null && token == null
+                    lastLyfclawToken = token
+
+                    when {
+                        !enabled -> stopAll()
+                        tokenChanged || loggedOut -> {
+                            // 换账号或登出后重新登录：旧 session ID 全部失效，需重建
+                            stopAll()
+                            refreshSubscriptions()
+                        }
+                        else -> refreshSubscriptions()
                     }
                 }
+        }
+    }
+
+    /** 会话被删除时调用，清理该会话的 SSE 订阅。 */
+    fun onConversationDeleted(conversationId: Uuid) {
+        appScope.launch {
+            mutex.withLock { removeSubscriptionLocked(conversationId) }
         }
     }
 
@@ -107,9 +128,9 @@ class LyfclawPushManager(
         mutex.withLock {
             // 移除已不需要的订阅
             subscriptions.keys.filter { it !in activeIds }.forEach { removeSubscriptionLocked(it) }
-            // 添加新订阅
+            // 添加新订阅（受 maxSubscriptions 限制）
             active.forEach { (convId, sid) ->
-                if (convId !in subscriptions) {
+                if (convId !in subscriptions && subscriptions.size < maxSubscriptions) {
                     addSubscriptionLocked(convId, sid)
                 }
             }
@@ -165,7 +186,10 @@ class LyfclawPushManager(
                 mutex.withLock {
                     // 先取消旧订阅再建新的
                     subscriptions[conversationId]?.cancel()
-                    addSubscriptionLocked(conversationId, sessionId)
+                    subscriptions.remove(conversationId)
+                    if (subscriptions.size < maxSubscriptions) {
+                        addSubscriptionLocked(conversationId, sessionId)
+                    }
                 }
             }
         }

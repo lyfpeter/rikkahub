@@ -2,6 +2,8 @@ package me.rerere.rikkahub.service
 
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +35,11 @@ class LyfclawFirebaseMessagingService : FirebaseMessagingService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // App 在前台时 SSE 路径已处理，不重复弹通知
+        if (ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            return
+        }
+
         val title = message.notification?.title
             ?: message.data["title"]
             ?: "lyfclaw"

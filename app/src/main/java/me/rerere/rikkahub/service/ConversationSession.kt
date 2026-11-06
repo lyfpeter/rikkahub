@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.finishReasoning
 import me.rerere.rikkahub.data.model.Conversation
 import java.time.Instant
@@ -236,6 +237,18 @@ class ConversationSession(
     val isInUse: Boolean
         get() = refCount.get() > 0 || _generationJob.value != null ||
             messageQueue.state.value.messages.isNotEmpty()
+
+    // 生成期间收到的 lyfclaw 推送暂存于此，生成结束后 drain 并重试 merge
+    val pendingLyfclawMerge = java.util.concurrent.ConcurrentLinkedQueue<Pair<String, UIMessage>>()
+
+    fun drainPendingLyfclawMerge(): List<Pair<String, UIMessage>> {
+        val drained = mutableListOf<Pair<String, UIMessage>>()
+        while (true) {
+            val item = pendingLyfclawMerge.poll() ?: break
+            drained.add(item)
+        }
+        return drained
+    }
 
     // 空闲检查任务
     private var idleCheckJob: Job? = null
