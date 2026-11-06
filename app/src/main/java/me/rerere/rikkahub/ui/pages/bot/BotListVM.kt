@@ -53,6 +53,19 @@ class BotListVM(
         }
     }
 
+    fun renameBot(bot: LyfclawBot, newDisplayName: String) {
+        viewModelScope.launch {
+            runCatching {
+                lyfclawChatService.updateBotDisplayName(bot.label, newDisplayName)
+            }.onSuccess {
+                // 刷新列表
+                fetchBots()
+            }.onFailure { e ->
+                _error.value = e.message ?: "Failed to rename bot"
+            }
+        }
+    }
+
     fun selectBot(bot: LyfclawBot) {
         // 同步写入，不等 viewModelScope（页面可能马上被销毁）
         kotlinx.coroutines.runBlocking {

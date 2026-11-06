@@ -417,32 +417,35 @@ fun ChatDrawerContent(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
             ) {
-                DrawerAction(
-                    icon = {
-                        Icon(
-                            imageVector = HugeIcons.LookTop,
-                            contentDescription = stringResource(R.string.assistant_page_title)
-                        )
-                    },
-                    label = {
-                        Text(stringResource(R.string.assistant_page_title))
-                    },
-                    onClick = {
-                        navController.navigate(Screen.Assistant)
-                    },
-                )
+                // lyfclaw 模式下隐藏助手和收藏入口
+                if (!settings.isLyfclawEnabled) {
+                    DrawerAction(
+                        icon = {
+                            Icon(
+                                imageVector = HugeIcons.LookTop,
+                                contentDescription = stringResource(R.string.assistant_page_title)
+                            )
+                        },
+                        label = {
+                            Text(stringResource(R.string.assistant_page_title))
+                        },
+                        onClick = {
+                            navController.navigate(Screen.Assistant)
+                        },
+                    )
 
-                DrawerAction(
-                    icon = {
-                        Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
-                    },
-                    label = {
-                        Text(stringResource(R.string.favorite_page_title))
-                    },
-                    onClick = {
-                        navController.navigate(Screen.Favorite)
-                    },
-                )
+                    DrawerAction(
+                        icon = {
+                            Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
+                        },
+                        label = {
+                            Text(stringResource(R.string.favorite_page_title))
+                        },
+                        onClick = {
+                            navController.navigate(Screen.Favorite)
+                        },
+                    )
+                }
 
                 DrawerAction(
                     icon = {

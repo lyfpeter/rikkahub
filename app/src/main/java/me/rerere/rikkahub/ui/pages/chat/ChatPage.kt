@@ -598,12 +598,15 @@ private fun TopBar(
                 Icon(if (previewMode) HugeIcons.Cancel01 else HugeIcons.LeftToRightListBullet, "Chat Options")
             }
 
-            IconButton(
-                onClick = {
-                    onNewChat()
+            // 新增会话按钮：lyfclaw 模式下隐藏（通过侧边栏 bot 列表新建）
+            if (!settings.isLyfclawEnabled) {
+                IconButton(
+                    onClick = {
+                        onNewChat()
+                    }
+                ) {
+                    Icon(HugeIcons.MessageAdd01, "New Message")
                 }
-            ) {
-                Icon(HugeIcons.MessageAdd01, "New Message")
             }
         },
     )

@@ -22,6 +22,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -69,6 +70,29 @@ class LyfclawChatService(
      * 拉取当前登录用户名下可用的 direct bot 列表（GET /api/app/chat/direct/bots）。
      * 用于在没有配置 bot_label 时自动选一个，避免发消息时报 "bot not found"。
      */
+    suspend fun updateBotDisplayName(botLabel: String, displayName: String) = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val encoded = java.net.URLEncoder.encode(botLabel, "UTF-8")
+        val body = """{"display_name":"${displayName.replace("\"", "\\\"")}"}"""
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/agents/$encoded")
+            .put(
+                okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body,
+                )
+            )
+            .header("Authorization", "Bearer $token")
+            .build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw Exception("Update bot failed: ${resp.code}")
+            }
+        }
+    }
+
     suspend fun fetchBots(): List<LyfclawBot> = withContext(Dispatchers.IO) {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
