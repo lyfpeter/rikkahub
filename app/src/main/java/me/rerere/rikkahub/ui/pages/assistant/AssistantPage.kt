@@ -121,13 +121,12 @@ fun AssistantPage(
     if (showCreateSheet) {
         BotEditSheet(
             title = stringResource(R.string.assistant_page_bot_new_title),
-            initialLabel = "",
             initialDisplayName = "",
             initialSystemPrompt = "",
             isCreate = true,
             onDismiss = { showCreateSheet = false },
-            onSave = { label, displayName, systemPrompt ->
-                vm.createBot(label, displayName, systemPrompt)
+            onSave = { displayName, systemPrompt ->
+                vm.createBot(displayName, systemPrompt)
                 showCreateSheet = false
             },
         )
@@ -137,12 +136,11 @@ fun AssistantPage(
     editingBot?.let { bot ->
         BotEditSheet(
             title = stringResource(R.string.assistant_page_bot_edit_title),
-            initialLabel = bot.label,
             initialDisplayName = bot.displayName,
             initialSystemPrompt = "",
             isCreate = false,
             onDismiss = { editingBot = null },
-            onSave = { _, displayName, systemPrompt ->
+            onSave = { displayName, systemPrompt ->
                 vm.updateBot(bot.label, displayName, systemPrompt.ifBlank { null })
                 editingBot = null
             },
@@ -185,13 +183,7 @@ private fun BotItem(
                 )
             },
             supportingContent = {
-                if (bot.displayName.isNotBlank() && bot.displayName != bot.label) {
-                    Text(
-                        bot.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                // 标识（bot.label）已由后端生成、对内不可读，不再展示。
             },
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -210,14 +202,12 @@ private fun BotItem(
 @Composable
 private fun BotEditSheet(
     title: String,
-    initialLabel: String,
     initialDisplayName: String,
     initialSystemPrompt: String,
     isCreate: Boolean,
     onDismiss: () -> Unit,
-    onSave: (label: String, displayName: String, systemPrompt: String) -> Unit,
+    onSave: (displayName: String, systemPrompt: String) -> Unit,
 ) {
-    var label by remember { mutableStateOf(initialLabel) }
     var displayName by remember { mutableStateOf(initialDisplayName) }
     var systemPrompt by remember { mutableStateOf(initialSystemPrompt) }
     val sheetState = rememberModalBottomSheetState()
@@ -233,16 +223,6 @@ private fun BotEditSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge)
-
-            if (isCreate) {
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text(stringResource(R.string.assistant_page_bot_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
 
             OutlinedTextField(
                 value = displayName,
@@ -265,8 +245,8 @@ private fun BotEditSheet(
             ) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 TextButton(
-                    onClick = { onSave(label.trim(), displayName.trim(), systemPrompt.trim()) },
-                    enabled = if (isCreate) label.isNotBlank() else true,
+                    onClick = { onSave(displayName.trim(), systemPrompt.trim()) },
+                    enabled = if (isCreate) displayName.isNotBlank() else true,
                 ) { Text(stringResource(R.string.save)) }
             }
         }

@@ -1788,7 +1788,6 @@
   <string name="assistant_page_bot_rename">重新命名</string>
   <string name="assistant_page_bot_more">更多</string>
   <string name="assistant_page_bot_retry">重試</string>
-  <string name="assistant_page_bot_label">標識（唯一）</string>
   <string name="assistant_page_bot_display_name">顯示名稱</string>
   <string name="assistant_page_bot_system_prompt">系統提示詞（角色設定）</string>
 </resources>

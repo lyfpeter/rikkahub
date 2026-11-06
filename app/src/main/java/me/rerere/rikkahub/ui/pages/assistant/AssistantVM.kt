@@ -53,10 +53,11 @@ class AssistantVM(
         }
     }
 
-    fun createBot(label: String, displayName: String, systemPrompt: String, onSuccess: () -> Unit = {}) {
+    fun createBot(displayName: String, systemPrompt: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             runCatching {
-                lyfclawChatService.createBot(label, displayName, systemPrompt)
+                // 不传 label：标识由后端生成；仅让用户提供显示名 / 系统提示。
+                lyfclawChatService.createBot(displayName, systemPrompt)
             }.onSuccess {
                 fetchBots()
                 onSuccess()

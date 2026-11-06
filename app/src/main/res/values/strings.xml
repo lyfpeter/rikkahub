@@ -1806,7 +1806,6 @@
   <string name="assistant_page_bot_rename">Rename</string>
   <string name="assistant_page_bot_more">More</string>
   <string name="assistant_page_bot_retry">Retry</string>
-  <string name="assistant_page_bot_label">Label (unique identifier)</string>
   <string name="assistant_page_bot_display_name">Display Name</string>
   <string name="assistant_page_bot_system_prompt">System Prompt</string>
 </resources>

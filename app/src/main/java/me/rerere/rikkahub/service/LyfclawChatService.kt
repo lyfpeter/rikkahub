@@ -67,14 +67,16 @@ class LyfclawChatService(
     }
 
     /**
-     * 拉取当前登录用户名下可用的 direct bot 列表（GET /api/app/chat/direct/bots）。
-     * 用于在没有配置 bot_label 时自动选一个，避免发消息时报 "bot not found"。
+     * 创建 bot（POST /api/app/bots）。
+     *
+     * **不传 label**：标识由后端生成并统一管理，客户端只提供 display_name / system_prompt；
+     * 响应里的 `bot.label` 才是后续请求要用的稳定标识。
      */
-    suspend fun createBot(label: String, displayName: String, systemPrompt: String): JsonObject = withContext(Dispatchers.IO) {
+    suspend fun createBot(displayName: String, systemPrompt: String): JsonObject = withContext(Dispatchers.IO) {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
-        val body = """{"label":"${label.replace("\"","\\\"")}","display_name":"${displayName.replace("\"","\\\"")}","system_prompt":"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}"}"""
+        val body = """{"display_name":"${displayName.replace("\"","\\\"")}","system_prompt":"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}"}"""
         val request = Request.Builder()
             .url("$baseUrl/api/app/bots")
             .post(body.toRequestBody("application/json".toMediaType()))
