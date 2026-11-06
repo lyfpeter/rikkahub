@@ -1,0 +1,23 @@
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantVM.kt
+  s_c2e623da22b346::t_bbac19c3fe432b 56,59-60
+app/src/main/java/me/rerere/rikkahub/service/LyfclawChatService.kt
+  s_c2e623da22b346::t_f61be8ced2a19a 70-73,75,79
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantPage.kt
+  s_c2e623da22b346::t_d586f3494ec1ba 128-129,143,186,209,248-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1cfbac7d0c9464f151ef0f4698274935d346a31b",
+  "prompts": {},
+  "sessions": {
+    "s_c2e623da22b346": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1a668-7f85-73a5-b3f6-5e784f6a8e6a",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
