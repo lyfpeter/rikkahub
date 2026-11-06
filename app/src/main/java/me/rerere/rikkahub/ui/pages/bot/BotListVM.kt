@@ -53,6 +53,43 @@ class BotListVM(
         }
     }
 
+    fun createBot(label: String, displayName: String, systemPrompt: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching {
+                lyfclawChatService.createBot(label, displayName, systemPrompt)
+            }.onSuccess {
+                fetchBots()
+                onSuccess()
+            }.onFailure { e ->
+                _error.value = e.message ?: "Failed to create bot"
+            }
+        }
+    }
+
+    fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?) {
+        viewModelScope.launch {
+            runCatching {
+                lyfclawChatService.updateBot(botLabel, displayName, systemPrompt)
+            }.onSuccess {
+                fetchBots()
+            }.onFailure { e ->
+                _error.value = e.message ?: "Failed to update bot"
+            }
+        }
+    }
+
+    fun deleteBot(botLabel: String) {
+        viewModelScope.launch {
+            runCatching {
+                lyfclawChatService.deleteBot(botLabel)
+            }.onSuccess {
+                fetchBots()
+            }.onFailure { e ->
+                _error.value = e.message ?: "Failed to delete bot"
+            }
+        }
+    }
+
     fun renameBot(bot: LyfclawBot, newDisplayName: String) {
         viewModelScope.launch {
             runCatching {

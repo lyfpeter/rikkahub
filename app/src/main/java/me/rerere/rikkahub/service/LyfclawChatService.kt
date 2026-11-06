@@ -70,6 +70,62 @@ class LyfclawChatService(
      * 拉取当前登录用户名下可用的 direct bot 列表（GET /api/app/chat/direct/bots）。
      * 用于在没有配置 bot_label 时自动选一个，避免发消息时报 "bot not found"。
      */
+    suspend fun createBot(label: String, displayName: String, systemPrompt: String): JsonObject = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val body = """{"label":"${label.replace("\"","\\\"")}","display_name":"${displayName.replace("\"","\\\"")}","system_prompt":"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}"}"""
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/bots")
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .header("Authorization", "Bearer $token")
+            .build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw Exception("Create bot failed: ${resp.code} ${resp.body?.string()}")
+            }
+            json.parseToJsonElement(resp.body!!.string()).jsonObject
+        }
+    }
+
+    suspend fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?) = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val encoded = java.net.URLEncoder.encode(botLabel, "UTF-8")
+        val parts = mutableListOf<String>()
+        if (displayName != null) parts.add("\"display_name\":\"${displayName.replace("\"","\\\"")}\"")
+        if (systemPrompt != null) parts.add("\"system_prompt\":\"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}\"")
+        val body = "{${parts.joinToString(",")}}"
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/bots/$encoded")
+            .put(body.toRequestBody("application/json".toMediaType()))
+            .header("Authorization", "Bearer $token")
+            .build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw Exception("Update bot failed: ${resp.code} ${resp.body?.string()}")
+            }
+        }
+    }
+
+    suspend fun deleteBot(botLabel: String) = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+        val encoded = java.net.URLEncoder.encode(botLabel, "UTF-8")
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/bots/$encoded")
+            .delete()
+            .header("Authorization", "Bearer $token")
+            .build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw Exception("Delete bot failed: ${resp.code} ${resp.body?.string()}")
+            }
+        }
+    }
+
     suspend fun updateBotDisplayName(botLabel: String, displayName: String) = withContext(Dispatchers.IO) {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
