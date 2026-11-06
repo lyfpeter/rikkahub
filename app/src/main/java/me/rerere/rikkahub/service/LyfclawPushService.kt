@@ -104,11 +104,25 @@ class LyfclawPushService : Service() {
     }
 
     private fun stopService() {
+        cancelRestartAlarm()
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             isForeground = false
         }
         stopSelf()
+    }
+
+    private fun cancelRestartAlarm() {
+        val alarmManager = getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(this, LyfclawPushService::class.java).setAction(ACTION_START)
+        val pendingIntent = PendingIntent.getService(
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        )
+        if (pendingIntent != null) {
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
     }
 
     private fun scheduleRestart() {

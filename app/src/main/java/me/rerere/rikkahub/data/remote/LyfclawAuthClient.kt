@@ -188,10 +188,14 @@ class LyfclawAuthClient(
 
     suspend fun registerDevice(baseUrl: String, token: String, fcmToken: String) {
         val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            DeviceRegisterRequest.serializer(),
+            DeviceRegisterRequest(fcmToken, "android"),
+        )
         httpClient.post("$base/api/app/devices/register") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer $token")
-            setBody("""{"token":"$fcmToken","platform":"android"}""")
+            setBody(payload)
         }.let { resp ->
             if (resp.status.value !in 200..299) {
                 throw Exception("Device register failed: ${resp.status.value}")
@@ -201,10 +205,14 @@ class LyfclawAuthClient(
 
     suspend fun unregisterDevice(baseUrl: String, token: String, fcmToken: String) {
         val base = normalizeLyfclawBaseUrl(baseUrl)
+        val payload = json.encodeToString(
+            DeviceUnregisterRequest.serializer(),
+            DeviceUnregisterRequest(fcmToken),
+        )
         httpClient.post("$base/api/app/devices/unregister") {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer $token")
-            setBody("""{"token":"$fcmToken"}""")
+            setBody(payload)
         }.let { resp ->
             if (resp.status.value !in 200..299) {
                 throw Exception("Device unregister failed: ${resp.status.value}")
@@ -212,3 +220,14 @@ class LyfclawAuthClient(
         }
     }
 }
+
+@Serializable
+data class DeviceRegisterRequest(
+    val token: String,
+    val platform: String = "android",
+)
+
+@Serializable
+data class DeviceUnregisterRequest(
+    val token: String,
+)

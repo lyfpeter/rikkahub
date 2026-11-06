@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant as _toInstant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -1011,6 +1013,11 @@ class ChatService(
                 svc.subscribeSession(sessionId)
                     .retryWhen { cause, attempt ->
                         if (cause is CancellationException) return@retryWhen false
+                        val msg = cause.message.orEmpty()
+                        if (msg.contains("401") || msg.contains("403")) {
+                            Log.w(TAG, "lyfclaw 推送认证失败，停止重连: $msg")
+                            return@retryWhen false
+                        }
                         Log.w(TAG, "lyfclaw 推送订阅断开，准备重连: ${cause.message}")
                         delay(reconnectDelayMillis(attempt))
                         true
@@ -1172,12 +1179,19 @@ class ChatService(
     /**
      * 本地会话中最后一条 assistant 消息的 createdAt（秒精度 ISO8601），
      * 用于首次水位校准时判断是否需要追加离线积压消息。
+     * 截断到秒精度以匹配后端 createdAt 格式，避免毫秒精度差异导致比较错误。
      */
     private fun localLastAssistantCreatedAt(session: ConversationSession): String? {
         return session.state.value.messageNodes
             .flatMap { it.messages }
             .filter { it.role == MessageRole.ASSISTANT }
-            .maxOfOrNull { it.createdAt?.toString() ?: "" }
+            .maxOfOrNull {
+                val ts = it.createdAt
+                // 截断到秒精度，匹配后端 createdAt 格式（避免毫秒精度比较错误）
+                if (ts != null) {
+                    kotlinx.datetime.Instant.fromEpochSeconds(ts._toInstant(TimeZone.UTC).epochSeconds).toString()
+                } else ""
+            }
             ?.takeIf { it.isNotBlank() }
     }
 

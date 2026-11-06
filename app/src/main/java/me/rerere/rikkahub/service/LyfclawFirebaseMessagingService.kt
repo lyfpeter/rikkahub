@@ -77,12 +77,13 @@ class LyfclawFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         Log.d(TAG, "FCM token rotation, re-registering")
         val settings = settingsStore.settingsFlow.value
-        if (!settings.isLyfclawEnabled) return
+        val lyfclawToken = settings.lyfclawToken
+        if (!settings.isLyfclawEnabled || lyfclawToken == null) return
 
         serviceScope.launch {
             runCatching {
                 val base = normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
-                authClient.registerDevice(base, settings.lyfclawToken!!, token)
+                authClient.registerDevice(base, lyfclawToken, token)
             }.onFailure {
                 Log.w(TAG, "Failed to re-register FCM token: ${it.message}")
             }
