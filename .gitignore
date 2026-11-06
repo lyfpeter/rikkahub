@@ -11,3 +11,5 @@ local.properties
 .cursor
 .history
 .kotlin
+# Gradle daemon JVM 本地生成物（updateDaemonJvm）
+gradle/gradle-daemon-jvm.properties

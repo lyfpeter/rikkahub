@@ -79,13 +79,6 @@ import me.rerere.rikkahub.ui.hooks.readStringPreference
 import me.rerere.rikkahub.ui.hooks.rememberCustomAsrState
 import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
 import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantLocalToolPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantPromptPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantRequestPage
 import me.rerere.rikkahub.ui.pages.backup.BackupPage
 import me.rerere.rikkahub.ui.pages.chat.ChatPage
 import me.rerere.rikkahub.ui.pages.debug.DebugPage
@@ -118,7 +111,6 @@ import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawLoginPage
-import me.rerere.rikkahub.ui.pages.bot.BotListPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawRegisterPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawAccountPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawForgotPasswordPage
@@ -267,7 +259,7 @@ class RouteActivity : ComponentActivity() {
                     }
                 )
             } else {
-                Screen.BotList
+                Screen.Assistant
             }
         } else {
             Screen.LyfclawLogin
@@ -359,39 +351,16 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             entry<Screen.Assistant> {
-                                AssistantPage()
-                            }
-
-                            entry<Screen.AssistantDetail> { key ->
-                                AssistantDetailPage(key.id)
-                            }
-
-                            entry<Screen.AssistantBasic> { key ->
-                                AssistantBasicPage(key.id)
-                            }
-
-                            entry<Screen.AssistantPrompt> { key ->
-                                AssistantPromptPage(key.id)
-                            }
-
-                            entry<Screen.AssistantMemory> { key ->
-                                AssistantMemoryPage(key.id)
+                                AssistantPage(
+                                    showBack = backStack.size > 1,
+                                    onBotSelected = {
+                                        backStack.add(Screen.Chat(Uuid.random().toString()))
+                                    },
+                                )
                             }
 
                             entry<Screen.MemoryFile> { key ->
                                 MemoryFilePage(memoryId = key.memoryId, path = key.path)
-                            }
-
-                            entry<Screen.AssistantRequest> { key ->
-                                AssistantRequestPage(key.id)
-                            }
-
-                            entry<Screen.AssistantLocalTool> { key ->
-                                AssistantLocalToolPage(key.id)
-                            }
-
-                            entry<Screen.AssistantInjections> { key ->
-                                AssistantExtensionsPage(key.id)
                             }
 
                             entry<Screen.Setting> {
@@ -500,14 +469,6 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             // T6: lyfclaw 认证页面
-                            entry<Screen.BotList> {
-                                BotListPage(
-                                    onBotSelected = {
-                                        backStack.clear()
-                                        backStack.add(Screen.Chat(Uuid.random().toString()))
-                                    },
-                                )
-                            }
                             entry<Screen.LyfclawLogin> {
                                 LyfclawLoginPage(
                                     onLoginSuccess = {
@@ -638,30 +599,9 @@ sealed interface Screen : NavKey {
     @Serializable
     data object Assistant : Screen
 
-    @Serializable
-    data class AssistantDetail(val id: String) : Screen
-
-    @Serializable
-    data class AssistantBasic(val id: String) : Screen
-
-    @Serializable
-    data class AssistantPrompt(val id: String) : Screen
-
-    @Serializable
-    data class AssistantMemory(val id: String) : Screen
-
     /** 记忆库 [memoryId] 里的一个文件，[path] 为 null 时新建 */
     @Serializable
     data class MemoryFile(val memoryId: String, val path: String? = null) : Screen
-
-    @Serializable
-    data class AssistantRequest(val id: String) : Screen
-
-    @Serializable
-    data class AssistantLocalTool(val id: String) : Screen
-
-    @Serializable
-    data class AssistantInjections(val id: String) : Screen
 
     @Serializable
     data object Setting : Screen
@@ -738,7 +678,6 @@ sealed interface Screen : NavKey {
     // T6: lyfclaw 认证页面
     @Serializable
     data object LyfclawLogin : Screen
-    data object BotList : Screen
 
     @Serializable
     data object LyfclawRegister : Screen
