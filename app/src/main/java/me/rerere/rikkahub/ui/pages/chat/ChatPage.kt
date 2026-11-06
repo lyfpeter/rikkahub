@@ -560,14 +560,24 @@ private fun TopBar(
                 Column {
                     val provider = chatModel?.findProvider(providers = settings.providers, checkOverwrite = false)
                     Text(
-                        text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
+                        text = conversation.title.ifBlank {
+                            if (settings.isLyfclawEnabled) {
+                                settings.lyfclawBotLabel.ifBlank { stringResource(R.string.chat_page_new_chat) }
+                            } else {
+                                stringResource(R.string.chat_page_new_chat)
+                            }
+                        },
                         maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (chatModel != null && provider != null) {
                         Text(
-                            text = "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${chatModel.displayName} (${provider.name})",
+                            text = if (settings.isLyfclawEnabled) {
+                                "${chatModel.displayName} (${provider.name})"
+                            } else {
+                                "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${chatModel.displayName} (${provider.name})"
+                            },
                             overflow = TextOverflow.Ellipsis,
                             maxLines = 1,
                             color = LocalContentColor.current.copy(0.65f),

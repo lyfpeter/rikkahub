@@ -24,6 +24,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
@@ -90,6 +91,7 @@ import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.ui.toast.ToastType
 import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.readBooleanPreference
+import me.rerere.rikkahub.ui.hooks.readStringPreference
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
 import me.rerere.rikkahub.utils.navigateToChatPage
@@ -254,8 +256,11 @@ fun ChatDrawerContent(
                 }
             }
 
-            DrawerActions(navController = navController)
+            if (!settings.isLyfclawEnabled) {
+                DrawerActions(navController = navController)
+            }
 
+            if (!settings.isLyfclawEnabled) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -288,6 +293,7 @@ fun ChatDrawerContent(
                     },
                 )
             }
+            } // end if (!isLyfclawEnabled) for FolderBar
         }
     }
 
@@ -302,51 +308,84 @@ fun ChatDrawerContent(
                 drawerHeader()
             }
 
-            ConversationList(
-                current = current,
-                conversations = conversations,
-                conversationJobs = conversationJobs.keys,
-                listState = conversationListState,
-                header = if (scrollableHeader) drawerHeader else null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                onClick = {
-                    navigateToChatPage(navController, it.id)
-                },
-                onRegenerateTitle = {
-                    vm.generateTitle(it, true)
-                },
-                onDelete = {
-                    scope.launch {
-                        vm.deleteConversation(it).join()
-                        conversations.refresh()
-                        if (it.id == current.id) {
-                            navigateToChatPage(navController)
-                        }
-                    }
-                },
-                onPin = {
-                    vm.updatePinnedStatus(it)
-                },
-                onMoveToAssistant = {
-                    conversationToMove = it
-                    showMoveToAssistantSheet = true
-                },
-                onMoveToFolder = {
-                    conversationToMoveFolder = it
-                    showMoveToFolderSheet = true
+            // lyfclaw 模式：侧边栏直接显示 bot 列表
+            if (settings.isLyfclawEnabled) {
+                val lyfclawChatService = koinInject<me.rerere.rikkahub.service.LyfclawChatService>()
+                val bots by androidx.compose.runtime.produceState(
+                    initialValue = emptyList<me.rerere.rikkahub.service.LyfclawBot>(),
+                ) {
+                    value = runCatching { lyfclawChatService.fetchBots() }.getOrDefault(emptyList())
                 }
-            )
 
-            if (memoryDreaming) {
-                MemoryDreamingEntry(
-                    onClick = { navController.navigate(Screen.AssistantMemory(settings.assistantId.toString())) },
+                bots.forEach { bot ->
+                    NavigationDrawerItem(
+                        label = { Text(bot.displayName.ifBlank { bot.label }) },
+                        selected = bot.label == settings.lyfclawBotLabel,
+                        onClick = {
+                            if (bot.label != settings.lyfclawBotLabel) {
+                                vm.updateSettings { it.copy(lyfclawBotLabel = bot.label) }
+                            }
+                            scope.launch {
+                                val lastId = context.readStringPreference("lastConversationId", null)
+                                val uuid = lastId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+                                if (uuid != null && repo.getConversationById(uuid) != null) {
+                                    navigateToChatPage(navController, uuid)
+                                } else {
+                                    navigateToChatPage(navController, Uuid.random())
+                                }
+                            }
+                        },
+                        icon = { Icon(painter = androidx.compose.ui.res.painterResource(me.rerere.rikkahub.R.drawable.ic_stat_rikkahub), contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            } else {
+                ConversationList(
+                    current = current,
+                    conversations = conversations,
+                    conversationJobs = conversationJobs.keys,
+                    listState = conversationListState,
+                    header = if (scrollableHeader) drawerHeader else null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    onClick = {
+                        navigateToChatPage(navController, it.id)
+                    },
+                    onRegenerateTitle = {
+                        vm.generateTitle(it, true)
+                    },
+                    onDelete = {
+                        scope.launch {
+                            vm.deleteConversation(it).join()
+                            conversations.refresh()
+                            if (it.id == current.id) {
+                                navigateToChatPage(navController)
+                            }
+                        }
+                    },
+                    onPin = {
+                        vm.updatePinnedStatus(it)
+                    },
+                    onMoveToAssistant = {
+                        conversationToMove = it
+                        showMoveToAssistantSheet = true
+                    },
+                    onMoveToFolder = {
+                        conversationToMoveFolder = it
+                        showMoveToFolderSheet = true
+                    }
                 )
-            }
 
-            // 助手选择器
-            AssistantPicker(
+                if (memoryDreaming) {
+                    MemoryDreamingEntry(
+                        onClick = { navController.navigate(Screen.AssistantMemory(settings.assistantId.toString())) },
+                    )
+                }
+
+                // 助手选择器（仅非 lyfclaw 模式）
+                AssistantPicker(
                 settings = settings,
                 onSelectAssistant = { assistant ->
                     val updateJob = vm.updateSettings { it.copy(assistantId = assistant.id) }
@@ -369,6 +408,7 @@ fun ChatDrawerContent(
                     navController.navigate(Screen.AssistantDetail(id = currentAssistantId.toString()))
                 }
             )
+            } // end else (非 lyfclaw 模式)
 
             Row(
                 horizontalArrangement = Arrangement.SpaceAround,

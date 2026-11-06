@@ -118,6 +118,7 @@ import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawLoginPage
+import me.rerere.rikkahub.ui.pages.bot.BotListPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawRegisterPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawAccountPage
 import me.rerere.rikkahub.ui.pages.auth.LyfclawForgotPasswordPage
@@ -254,16 +255,20 @@ class RouteActivity : ComponentActivity() {
         val migrationState by DatabaseMigrationTracker.state.collectAsStateWithLifecycle()
 
         val startScreen = if (settings.isLyfclawEnabled) {
-            Screen.Chat(
-                id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
-                    Uuid.random().toString()
-                } else {
-                    readStringPreference(
-                        "lastConversationId",
+            if (settings.lyfclawBotLabel.isNotBlank()) {
+                Screen.Chat(
+                    id = if (readBooleanPreference("create_new_conversation_on_start", true)) {
                         Uuid.random().toString()
-                    ) ?: Uuid.random().toString()
-                }
-            )
+                    } else {
+                        readStringPreference(
+                            "lastConversationId",
+                            Uuid.random().toString()
+                        ) ?: Uuid.random().toString()
+                    }
+                )
+            } else {
+                Screen.BotList
+            }
         } else {
             Screen.LyfclawLogin
         }
@@ -495,6 +500,14 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             // T6: lyfclaw 认证页面
+                            entry<Screen.BotList> {
+                                BotListPage(
+                                    onBotSelected = {
+                                        backStack.clear()
+                                        backStack.add(Screen.Chat(Uuid.random().toString()))
+                                    },
+                                )
+                            }
                             entry<Screen.LyfclawLogin> {
                                 LyfclawLoginPage(
                                     onLoginSuccess = {
@@ -725,6 +738,7 @@ sealed interface Screen : NavKey {
     // T6: lyfclaw 认证页面
     @Serializable
     data object LyfclawLogin : Screen
+    data object BotList : Screen
 
     @Serializable
     data object LyfclawRegister : Screen
