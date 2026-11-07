@@ -1,0 +1,43 @@
+ai/src/main/java/me/rerere/ai/ui/Message.kt
+  s_3fb81287d29208::t_89e4bed4c5b0d5 29-31,134-143
+app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+  s_3fb81287d29208::t_ada7724fb3171d 359-361
+app/src/main/java/me/rerere/rikkahub/data/model/ConversationConfig.kt
+  s_3fb81287d29208::t_69e48cc56f4c6a 38-43,89,93-94
+app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+  s_3fb81287d29208::t_9406d5a9a5279f 47,545,548-558,797-802,890-892,903-1061
+app/src/main/java/me/rerere/rikkahub/service/LyfclawChatService.kt
+  s_3fb81287d29208::t_ecb71f0682b75f 42-50,234,251-290,469-472,508-512
+app/src/main/java/me/rerere/rikkahub/ui/components/ai/ChatInput.kt
+  s_3fb81287d29208::t_ca286cc30b9928 125-126,274,429,444-467
+app/src/main/java/me/rerere/rikkahub/ui/components/message/ChatMessageAvatar.kt
+  s_3fb81287d29208::t_21967b996c6cb6 65-66,72-95
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantPage.kt
+  s_3fb81287d29208::t_2a9bf19b8a7974 3,15,31,44,54,59,70,82-90,156-167,312-368
+app/src/main/java/me/rerere/rikkahub/ui/pages/assistant/AssistantVM.kt
+  s_3fb81287d29208::t_e9e04b76871316 13-15,19,24,136-166
+app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatPage.kt
+  s_3fb81287d29208::t_ccdc5515f37d0d 72,288-303,360
+app/src/main/res/values-zh-rTW/strings.xml
+  s_3fb81287d29208::t_85c76edc793422 1794-1800
+app/src/main/res/values-zh/strings.xml
+  s_3fb81287d29208::t_55b48dc9152426 1807-1813
+app/src/main/res/values/strings.xml
+  s_3fb81287d29208::t_633f9ef96868a9 1812-1818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "57c5459c071ba4b12bcda0dd8c5d5369ff02f73e",
+  "prompts": {},
+  "sessions": {
+    "s_3fb81287d29208": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9eafe541-67e0-4160-9fa6-c29691f63a7c",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
