@@ -231,7 +231,7 @@ class LyfclawChatService(
         botLabel: String,
         text: String,
         conversationId: String? = null,
-    ): Flow<LyfclawSseEvent> {
+    ): Flow<LyfclawSseEvent> = flow {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
@@ -248,7 +248,7 @@ class LyfclawChatService(
             .header("Accept", "text/event-stream")
             .build()
 
-        return streamSse(request)
+        emitAll(streamSse(request))
     }
 
     /**
@@ -264,7 +264,7 @@ class LyfclawChatService(
         targets: List<String>,
         text: String,
         conversationId: String,
-    ): Flow<LyfclawSseEvent> {
+    ): Flow<LyfclawSseEvent> = flow {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
@@ -281,7 +281,7 @@ class LyfclawChatService(
             .header("Accept", "text/event-stream")
             .build()
 
-        return streamSse(request)
+        emitAll(streamSse(request))
     }
 
     /**
