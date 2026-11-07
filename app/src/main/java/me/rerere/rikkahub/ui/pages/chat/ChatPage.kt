@@ -326,6 +326,7 @@ private fun ChatPageContent(
                     assistant = assistant,
                     chatModel = currentChatModel,
                     conversation = conversation,
+                    groupMembers = groupMembers,
                     bigScreen = bigScreen,
                     drawerState = drawerState,
                     previewMode = previewMode,
@@ -537,6 +538,7 @@ private fun TopBar(
     assistant: Assistant,
     chatModel: Model?,
     conversation: Conversation,
+    groupMembers: List<Pair<String, String>>,
     drawerState: DrawerState,
     bigScreen: Boolean,
     previewMode: Boolean,
@@ -577,13 +579,16 @@ private fun TopBar(
             ) {
                 Column {
                     val provider = chatModel?.findProvider(providers = settings.providers, checkOverwrite = false)
+                    // lyfclaw 模式：左上角一律显示「机器名（bot）」而非自动生成的会话标题
+                    // （标题派生自首条消息，会把机器名顶掉）。群会话显示成员名。
+                    val lyfclawTitle = when {
+                        !settings.isLyfclawEnabled -> null
+                        groupMembers.isNotEmpty() -> groupMembers.joinToString("、") { it.second }
+                        else -> settings.lyfclawBotLabel.ifBlank { null }
+                    }
                     Text(
-                        text = conversation.title.ifBlank {
-                            if (settings.isLyfclawEnabled) {
-                                settings.lyfclawBotLabel.ifBlank { stringResource(R.string.chat_page_new_chat) }
-                            } else {
-                                stringResource(R.string.chat_page_new_chat)
-                            }
+                        text = lyfclawTitle ?: conversation.title.ifBlank {
+                            stringResource(R.string.chat_page_new_chat)
                         },
                         maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium,

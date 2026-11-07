@@ -801,7 +801,9 @@ class ChatService(
         }
 
         val text = userContent.filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>().joinToString("") { it.text }
-        val convId = session.state.value.title.ifBlank { null }
+        // 后端会话键 = 稳定的 `dm-<uuid>`（首次生成并落 config，之后复用）。
+        // 不能用会话「标题」：标题会随自动命名 / 用户改名变化，键变则历史裂开（见本次修复）。
+        val convId = ensureLyfclawConversationId(session)
 
         try {
             // 解析可用的 bot 标签（后端要求 bot_label 归属当前用户）
@@ -1014,6 +1016,28 @@ class ChatService(
             reportFailure(session, e, R.string.error_title_send_message)
             return TurnResult.Failed
         }
+    }
+
+    /**
+     * 1:1 会话的后端裸 id（`dm-<uuid>`）：首次生成并写入 config，之后复用。
+     *
+     * 之前用会话「标题」当键（`title.ifBlank { null }`），标题一被自动命名 / 用户改名，
+     * 后端 scoped 键 `bot:<bot_id>:conv:<键>` 就跟着变 ⇒ 历史裂开 / 会话串。改用一次性
+     * 生成的稳定 id（与该 bot 的群会话键 `grp-<uuid>` 隔离、互不污染）。
+     */
+    private suspend fun ensureLyfclawConversationId(session: ConversationSession): String {
+        val existing = session.state.value.config?.lyfclawConversationId
+        if (!existing.isNullOrBlank()) return existing
+        val generated = "dm-${Uuid.random()}"
+        session.updateMetadata(
+            transform = { conv ->
+                val config = conv.config ?: return@updateMetadata conv
+                conv.copy(config = config.copy(lyfclawConversationId = generated))
+            },
+            persist = conversationRepo::updateConversationConfig,
+            expectedIncarnation = session.incarnation,
+        )
+        return generated
     }
 
     /**
