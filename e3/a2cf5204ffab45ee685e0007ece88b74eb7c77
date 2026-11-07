@@ -1,0 +1,19 @@
+app/src/main/java/me/rerere/rikkahub/service/LyfclawChatService.kt
+  s_3fb81287d29208::t_d0659d558d2a96 234,251,267,284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e3a2cf5204ffab45ee685e0007ece88b74eb7c77",
+  "prompts": {},
+  "sessions": {
+    "s_3fb81287d29208": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9eafe541-67e0-4160-9fa6-c29691f63a7c",
+        "model": "unknown"
+      },
+      "human_author": "liyf <798726869@qq.com>"
+    }
+  }
+}
