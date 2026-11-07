@@ -69,6 +69,7 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.service.ChatError
+import me.rerere.rikkahub.service.LyfclawChatService
 import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPickerActions
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
@@ -284,6 +285,22 @@ private fun ChatPageContent(
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
 
+    // 群会话：成员 label → displayName（用于输入框 @ 提及）
+    val groupMemberLabels = conversation.config?.groupMemberBotLabels.orEmpty()
+    val lyfclawChatService: LyfclawChatService = koinInject()
+    val groupMembers: List<Pair<String, String>> by androidx.compose.runtime.produceState(
+        initialValue = emptyList<Pair<String, String>>(),
+        groupMemberLabels,
+    ) {
+        value = if (groupMemberLabels.isEmpty()) {
+            emptyList()
+        } else {
+            runCatching { lyfclawChatService.fetchBots() }.getOrDefault(emptyList())
+                .filter { it.label in groupMemberLabels }
+                .map { it.label to it.displayName.ifBlank { it.label } }
+        }
+    }
+
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
     var showFilesSheet by remember { mutableStateOf(false) }
@@ -340,6 +357,7 @@ private fun ChatPageContent(
                     settings = setting,
                     assistant = assistant,
                     chatModel = currentChatModel,
+                    groupMembers = groupMembers,
                     hazeState = hazeState,
                     onCancelClick = {
                         vm.stopGeneration()

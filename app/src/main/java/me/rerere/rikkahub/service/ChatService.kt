@@ -44,6 +44,7 @@ import me.rerere.ai.agent.RetryAttempt
 import me.rerere.ai.agent.runAgent
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.BuiltInTools
+import me.rerere.ai.ui.SpeakerSnapshot
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
@@ -541,11 +542,20 @@ class ChatService(
                             // lyfclaw 模式下重新生成助手消息：找到它对应的用户消息内容
                             val conversation = session.state.value
                             val nodeIndex = conversation.messageNodes.indexOfFirst { it.id == node.id }
-                            val userContent = conversation.messageNodes
+                            val userNode = conversation.messageNodes
                                 .take(nodeIndex)
                                 .lastOrNull { it.role == MessageRole.USER }
-                                ?.currentMessage?.parts
-                                ?: emptyList()
+                            val userContent = userNode?.currentMessage?.parts ?: emptyList()
+                            // 群会话 v1 只支持「整轮重跑」：丢掉该用户消息之后的所有发言人节点，再整组重跑
+                            val isGroup = conversation.config?.groupMemberBotLabels.orEmpty().isNotEmpty()
+                            if (isGroup && userNode != null) {
+                                session.tryUpdate { conv ->
+                                    val userIdx = conv.messageNodes.indexOfFirst { it.id == userNode.id }
+                                    if (userIdx == -1) null
+                                    else conv.copy(messageNodes = conv.messageNodes.take(userIdx + 1))
+                                } ?: return@launchGenerationJob
+                                session.flush()
+                            }
                             runLyfclawTurn(session, userContent)
                         } else {
                             runTurn(session, regenerateNodeId = node.id)
@@ -784,6 +794,12 @@ class ChatService(
         session: ConversationSession,
         userContent: List<me.rerere.ai.ui.UIMessagePart>,
     ): TurnResult {
+        // 群会话：成员非空时走多 bot 串行编排路径（带发言人边界）
+        val groupMembers = session.state.value.config?.groupMemberBotLabels.orEmpty()
+        if (groupMembers.isNotEmpty()) {
+            return runLyfclawGroupTurn(session, userContent, groupMembers)
+        }
+
         val text = userContent.filterIsInstance<me.rerere.ai.ui.UIMessagePart.Text>().joinToString("") { it.text }
         val convId = session.state.value.title.ifBlank { null }
 
@@ -871,6 +887,9 @@ class ChatService(
                     is LyfclawSseEvent.Snapshot -> {
                         // 全量快照（当前阶段忽略）
                     }
+                    is LyfclawSseEvent.Speaker -> {
+                        // 群会话专属：1:1 直达流不会发发言人边界
+                    }
                 }
             }
             return TurnResult.Finished(me.rerere.ai.agent.AgentFinishReason.Completed)
@@ -878,6 +897,165 @@ class ChatService(
             e.printStackTrace()
             reportFailure(session, e, R.string.error_title_send_message)
             return TurnResult.Failed
+        }
+    }
+
+    /**
+     * T7 群会话：多 bot 串行编排轮次。
+     *
+     * 后端按成员顺序串行跑成员 bot，每个发言人前发一个 `speaker` 边界事件。这里为每个
+     * speaker 插入一条独立的 assistant 节点（带 [SpeakerSnapshot]），其后到下一个 speaker
+     * 之前的 delta/node_update/done 都渲染到该节点，从而每条回复各自归属发言人。
+     *
+     * 用户 @ 了部分成员 → 只它们回（[resolveGroupTargets]）；未 @ → 全员按顺序回。
+     */
+    private suspend fun runLyfclawGroupTurn(
+        session: ConversationSession,
+        userContent: List<UIMessagePart>,
+        members: List<String>,
+    ): TurnResult {
+        val text = userContent.filterIsInstance<UIMessagePart.Text>().joinToString("") { it.text }
+        try {
+            val groupConvId = ensureGroupConversationId(session)
+            val targets = resolveGroupTargets(text, members)
+            val stream = lyfclawChatService!!.groupStream(members, targets, text, groupConvId)
+
+            // 当前发言人节点：Speaker 事件到达时切换；其后帧都渲染到该节点
+            var currentSpeakerNodeId: Uuid? = null
+            var lastNodeParts: List<UIMessagePart>? = null
+            val accumulatedText = StringBuilder()
+
+            // 用给定 parts 覆盖指定节点的 assistant 消息
+            fun renderInto(nodeId: Uuid, parts: List<UIMessagePart>) {
+                session.tryUpdate { conv ->
+                    val nodes = conv.messageNodes.toMutableList()
+                    val idx = nodes.indexOfLast { it.id == nodeId }
+                    if (idx < 0) return@tryUpdate conv
+                    val node = nodes[idx]
+                    val msgs = node.messages.toMutableList()
+                    val lastMsg = msgs.lastOrNull() ?: return@tryUpdate conv
+                    if (lastMsg.role != MessageRole.ASSISTANT) return@tryUpdate conv
+                    msgs[msgs.lastIndex] = lastMsg.copy(parts = parts)
+                    nodes[idx] = node.copy(messages = msgs)
+                    conv.copy(messageNodes = nodes)
+                }
+            }
+
+            stream.collect { event ->
+                when (event) {
+                    is LyfclawSseEvent.Speaker -> {
+                        // 新发言人：插入独立 assistant 节点，后续帧渲染到它
+                        val nodeId = Uuid.random()
+                        currentSpeakerNodeId = nodeId
+                        lastNodeParts = null
+                        accumulatedText.setLength(0)
+                        val name = event.displayName.ifBlank { resolveBotDisplayName(event.botLabel) }
+                        session.update {
+                            it.copy(
+                                messageNodes = it.messageNodes + UIMessage(
+                                    id = nodeId,
+                                    role = MessageRole.ASSISTANT,
+                                    parts = listOf(UIMessagePart.Text("")),
+                                    speaker = SpeakerSnapshot(botLabel = event.botLabel, displayName = name),
+                                ).toMessageNode(),
+                            )
+                        }
+                    }
+                    is LyfclawSseEvent.Meta -> {
+                        persistLyfclawSession(session, event.sessionId, event.conversationId)
+                    }
+                    is LyfclawSseEvent.Delta -> {
+                        val nodeId = currentSpeakerNodeId ?: return@collect
+                        if (!event.transient) {
+                            accumulatedText.append(event.text)
+                            // 尚未收到 node_update 时退化为纯文本流式渲染
+                            if (lastNodeParts == null) {
+                                renderInto(nodeId, listOf(UIMessagePart.Text(accumulatedText.toString())))
+                            }
+                        }
+                    }
+                    is LyfclawSseEvent.Tool -> Unit
+                    is LyfclawSseEvent.NodeUpdate -> {
+                        val nodeId = currentSpeakerNodeId ?: return@collect
+                        val parts = mapLyfclawNodeParts(event.node)
+                        if (parts.isNotEmpty()) {
+                            lastNodeParts = parts
+                            renderInto(nodeId, parts)
+                        }
+                    }
+                    is LyfclawSseEvent.Done -> {
+                        currentSpeakerNodeId?.let { nodeId ->
+                            val parts = lastNodeParts?.takeIf { it.isNotEmpty() }
+                                ?: listOf(UIMessagePart.Text(
+                                    if (event.text.isNotBlank()) event.text else accumulatedText.toString()
+                                ))
+                            renderInto(nodeId, parts)
+                        }
+                        // 单个发言人的 done 不清空当前节点：后面可能还有下一个 speaker
+                        persistLyfclawSession(session, event.sessionId)
+                    }
+                    is LyfclawSseEvent.Error -> {
+                        // 单个成员失败不中断其余：把错误写进该成员节点，继续收下一个 speaker
+                        val nodeId = currentSpeakerNodeId
+                        if (nodeId != null) {
+                            renderInto(nodeId, listOf(UIMessagePart.Text("[错误] ${event.message}")))
+                        } else {
+                            addError(Exception(event.message), session.id, title = context.getString(R.string.error_title_send_message))
+                        }
+                    }
+                    is LyfclawSseEvent.Cancelled -> Unit
+                    is LyfclawSseEvent.Snapshot -> Unit
+                }
+            }
+            session.flush()
+            return TurnResult.Finished(me.rerere.ai.agent.AgentFinishReason.Completed)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            reportFailure(session, e, R.string.error_title_send_message)
+            return TurnResult.Failed
+        }
+    }
+
+    /**
+     * 群会话的后端裸 id（`grp-<uuid>`）：首次生成并写入 config，之后复用。
+     * 与 1:1 会话键隔离，故群内 transcript 不污染该 bot 的直达会话。
+     */
+    private suspend fun ensureGroupConversationId(session: ConversationSession): String {
+        val existing = session.state.value.config?.lyfclawGroupConversationId
+        if (!existing.isNullOrBlank()) return existing
+        val generated = "grp-${Uuid.random()}"
+        session.updateMetadata(
+            transform = { conv ->
+                val config = conv.config ?: return@updateMetadata conv
+                conv.copy(config = config.copy(lyfclawGroupConversationId = generated))
+            },
+            persist = conversationRepo::updateConversationConfig,
+            expectedIncarnation = session.incarnation,
+        )
+        return generated
+    }
+
+    /** label → displayName 缓存（一次拉取，整个群轮次共用）。 */
+    @Volatile
+    private var botDisplayNameCache: Map<String, String> = emptyMap()
+
+    private suspend fun resolveBotDisplayName(label: String): String {
+        if (botDisplayNameCache.isEmpty()) {
+            botDisplayNameCache = lyfclawChatService?.fetchBots()
+                .orEmpty()
+                .associate { it.label to it.displayName.ifBlank { it.label } }
+        }
+        return botDisplayNameCache[label] ?: label
+    }
+
+    /**
+     * 从用户文本里解析本轮要发言的成员（@提及）。让后端只跑这些目标；
+     * 未 @ 任何成员 → 返回空表，后端按「全员依次回」处理。
+     */
+    private suspend fun resolveGroupTargets(text: String, members: List<String>): List<String> {
+        return members.filter { label ->
+            val name = resolveBotDisplayName(label)
+            text.contains("@$name") || text.contains("@$label")
         }
     }
 

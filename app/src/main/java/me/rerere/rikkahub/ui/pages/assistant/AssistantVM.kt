@@ -10,13 +10,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.ConversationConfig
+import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.service.LyfclawBot
 import me.rerere.rikkahub.service.LyfclawChatService
 import me.rerere.rikkahub.service.LyfclawRuntime
+import kotlin.uuid.Uuid
 
 class AssistantVM(
     private val lyfclawChatService: LyfclawChatService,
     private val settingsStore: SettingsStore,
+    private val conversationRepo: ConversationRepository,
 ) : ViewModel() {
 
     val currentBotLabel: StateFlow<String> = settingsStore.settingsFlow
@@ -126,6 +131,37 @@ class AssistantVM(
         // 同步写入，不等 viewModelScope（页面可能马上被销毁）
         kotlinx.coroutines.runBlocking {
             settingsStore.update { it.copy(lyfclawBotLabel = bot.label) }
+        }
+    }
+
+    /**
+     * 应用内多 Bot 群聊：新建一个「群会话」并落库。
+     *
+     * 会话用当前助手的 [assistantId]（群自身的身份），把成员 bot 标签与群裸会话 id
+     * 固定在 [ConversationConfig] 上；群用独立的 `grp-<uuid>`，与 1:1 会话隔离。
+     * 建好后回调 [onCreated] 让调用方跳到会话页。
+     */
+    fun createGroupConversation(memberBotLabels: List<String>, onCreated: (Uuid) -> Unit) {
+        if (memberBotLabels.size < 2) return
+        viewModelScope.launch {
+            runCatching {
+                val assistantId = settingsStore.settingsFlow.value.assistantId
+                val conversation = Conversation.ofId(
+                    id = Uuid.random(),
+                    assistantId = assistantId,
+                ).copy(
+                    title = memberBotLabels.joinToString("、"),
+                    config = ConversationConfig(
+                        groupMemberBotLabels = memberBotLabels,
+                        lyfclawGroupConversationId = "grp-${Uuid.random()}",
+                    ),
+                )
+                conversationRepo.insertConversation(conversation)
+                conversation.id
+            }.onSuccess(onCreated)
+                .onFailure { e ->
+                    _error.value = e.message ?: "Failed to create group"
+                }
         }
     }
 }

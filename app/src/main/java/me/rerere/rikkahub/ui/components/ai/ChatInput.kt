@@ -122,6 +122,8 @@ fun ChatInput(
     // 会话视角下的助手和模型：会话开始后以会话上固定的配置为准
     assistant: Assistant,
     chatModel: Model?,
+    // 群会话成员（label → displayName）：非空时输入框上方显示 @ 提及条
+    groupMembers: List<Pair<String, String>> = emptyList(),
     hazeState: HazeState,
     modifier: Modifier = Modifier,
     onUpdateAssistant: (Assistant) -> Unit,
@@ -269,6 +271,7 @@ fun ChatInput(
                         TextInputRow(
                             state = state,
                             assistant = assistant,
+                            groupMembers = groupMembers,
                             onSendMessage = { sendMessage() },
                         )
                     }
@@ -423,6 +426,7 @@ private fun ActionIconButton(
 private fun TextInputRow(
     state: ChatInputState,
     assistant: Assistant,
+    groupMembers: List<Pair<String, String>> = emptyList(),
     onSendMessage: () -> Unit,
 ) {
     val settings = LocalSettings.current
@@ -437,6 +441,30 @@ private fun TextInputRow(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        // 群会话：点成员芯片把 @名字 插进输入框，发送时解析为定向发言人
+        if (groupMembers.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                groupMembers.forEach { (_, name) ->
+                    Surface(
+                        onClick = { state.appendText("@$name ") },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Text(
+                            text = "@$name",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
         if (state.isEditing()) {
             Surface(
                 shape = RoundedCornerShape(16.dp),

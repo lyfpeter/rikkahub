@@ -356,6 +356,9 @@ class RouteActivity : ComponentActivity() {
                                     onBotSelected = {
                                         backStack.add(Screen.Chat(Uuid.random().toString()))
                                     },
+                                    onGroupCreated = { id ->
+                                        backStack.add(Screen.Chat(id.toString()))
+                                    },
                                 )
                             }
 

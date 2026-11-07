@@ -26,6 +26,9 @@ data class UIMessage(
     val modelId: Uuid? = null,
     // 模型名称的快照：modelId 指向的模型被删除后，靠它继续显示这条消息由谁生成
     val modelSnapshot: ModelSnapshot? = null,
+    // 发言人的快照：仅群会话用——标注这条 assistant 消息由哪个 lyfclaw bot 生成
+    // （名字/头像按 botLabel 从 bots 缓存解析）。1:1 会话为 null，渲染回落到助手/模型。
+    val speaker: SpeakerSnapshot? = null,
     val usage: TokenUsage? = null,
     // 模型实际生成耗时（各步从首个 chunk 到响应结束的累计），不含首 token 延迟、工具执行和审批等待
     val generationTimeMs: Long? = null,
@@ -126,6 +129,16 @@ data class UIMessage(
 data class ModelSnapshot(
     val modelId: String,
     val displayName: String,
+)
+
+/**
+ * 群会话里某条 assistant 消息的发言人快照（lyfclaw bot）。
+ * 头像按 [botLabel] 从本地 bots 缓存解析；缓存缺失时退回 [displayName] + 默认头像。
+ */
+@Serializable
+data class SpeakerSnapshot(
+    val botLabel: String,
+    val displayName: String = "",
 )
 
 /**

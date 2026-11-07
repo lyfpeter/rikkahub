@@ -62,13 +62,37 @@ fun ChatMessageAssistantAvatar(
     val settings = LocalSettings.current
     val showIcon = settings.displaySetting.showModelIcon
     val useAssistantAvatar = assistant?.useAssistantAvatar == true
-    if (message.role == MessageRole.ASSISTANT && (model != null || useAssistantAvatar)) {
+    val speaker = message.speaker
+    if (message.role == MessageRole.ASSISTANT && (speaker != null || model != null || useAssistantAvatar)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier = modifier
         ) {
-            if (useAssistantAvatar) {
+            if (speaker != null) {
+                // 群会话：按发言人 bot 展示名字与图标（同 bot 的 1:1 会话不受影响）
+                if (showIcon) {
+                    AutoAIIcon(
+                        name = speaker.botLabel,
+                        modifier = Modifier.size(28.dp),
+                        loading = loading,
+                    )
+                }
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (settings.displaySetting.showModelName) {
+                        Text(
+                            text = speaker.displayName.ifBlank { speaker.botLabel },
+                            style = MaterialTheme.typography.labelLargeEmphasized,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            } else if (useAssistantAvatar) {
                 if (showIcon) {
                     UIAvatar(
                         name = assistant.name,

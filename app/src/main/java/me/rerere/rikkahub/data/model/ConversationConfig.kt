@@ -35,6 +35,12 @@ data class ConversationConfig(
     val lyfclawSyncedAt: String? = null,
     // 后端裸 conversation_id（如 "4010d84e"），用于 bot 级推送事件按 conversation_id 分发到对应本地会话。
     val lyfclawConversationId: String? = null,
+    // ── 应用内多 Bot 群聊（2026-11-07）──
+    // 非空 = 本会话是「群会话」：这些 lyfclaw bot 一起参与，用户可 @ 指定发言人。
+    // 群用独立的裸会话 id（`grp-<uuid>`，见 lyfclawGroupConversationId），与 1:1 隔离。
+    val groupMemberBotLabels: List<String> = emptyList(),
+    // 群会话的裸 id（`grp-<uuid>`）；每个成员 bot 各自派生 `bot:<id>:conv:<此值>`。
+    val lyfclawGroupConversationId: String? = null,
 )
 
 // 内置搜索是模型的开关，不在助手上，由调用方另行填入
@@ -80,10 +86,12 @@ fun Conversation.withAssistantUpdate(updated: Assistant, settings: Settings): Co
                     // 内置搜索是模型自身的能力，换模型后跟随新模型的开关
                     settings.findModelById(updated.chatModelId)?.tools?.contains(BuiltInTools.Search) == true
                 },
-                // 助手侧配置改动不应清掉 lyfclaw 对接字段（会话键 / 同步水位）
+                // 助手侧配置改动不应清掉 lyfclaw 对接字段（会话键 / 同步水位 / 群成员）
                 lyfclawSessionId = config.lyfclawSessionId,
                 lyfclawSyncedAt = config.lyfclawSyncedAt,
                 lyfclawConversationId = config.lyfclawConversationId,
+                groupMemberBotLabels = config.groupMemberBotLabels,
+                lyfclawGroupConversationId = config.lyfclawGroupConversationId,
             ),
             modeInjectionIds = updated.modeInjectionIds,
             lorebookIds = updated.lorebookIds,

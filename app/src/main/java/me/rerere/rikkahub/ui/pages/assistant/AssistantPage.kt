@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.assistant
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -26,6 +28,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.MoreVertical
+import me.rerere.hugeicons.stroke.UserGroup
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.service.LyfclawBot
 import me.rerere.rikkahub.service.LyfclawRuntime
@@ -47,10 +51,12 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import me.rerere.ui.components.SelectTextField
 import org.koin.androidx.compose.koinViewModel
+import kotlin.uuid.Uuid
 
 @Composable
 fun AssistantPage(
     onBotSelected: () -> Unit,
+    onGroupCreated: (Uuid) -> Unit = {},
     showBack: Boolean = true,
     vm: AssistantVM = koinViewModel(),
 ) {
@@ -61,6 +67,7 @@ fun AssistantPage(
     val runtimes by vm.runtimes.collectAsStateWithLifecycle()
 
     var showCreateSheet by remember { mutableStateOf(false) }
+    var showCreateGroupSheet by remember { mutableStateOf(false) }
     var editingBot by remember { mutableStateOf<LyfclawBot?>(null) }
     var menuBot by remember { mutableStateOf<LyfclawBot?>(null) }
 
@@ -72,6 +79,15 @@ fun AssistantPage(
                 title = { Text(stringResource(R.string.assistant_page_title)) },
                 navigationIcon = { if (showBack) BackButton() },
                 actions = {
+                    // 至少 2 个 bot 才能成群
+                    if (bots.size >= 2) {
+                        IconButton(onClick = { showCreateGroupSheet = true }) {
+                            Icon(
+                                HugeIcons.UserGroup,
+                                contentDescription = stringResource(R.string.group_chat_new),
+                            )
+                        }
+                    }
                     IconButton(onClick = { showCreateSheet = true }) {
                         Icon(HugeIcons.Add01, contentDescription = stringResource(R.string.assistant_page_bot_create))
                     }
@@ -133,6 +149,18 @@ fun AssistantPage(
             onSave = { displayName, systemPrompt, runtime ->
                 vm.createBot(displayName, systemPrompt, runtime)
                 showCreateSheet = false
+            },
+        )
+    }
+
+    // 群创建表单（多选 bot）
+    if (showCreateGroupSheet) {
+        GroupCreateSheet(
+            bots = bots,
+            onDismiss = { showCreateGroupSheet = false },
+            onConfirm = { labels ->
+                showCreateGroupSheet = false
+                vm.createGroupConversation(labels, onCreated = onGroupCreated)
             },
         )
     }
@@ -278,6 +306,63 @@ private fun BotEditSheet(
                     onClick = { onSave(displayName.trim(), systemPrompt.trim(), runtime) },
                     enabled = if (isCreate) displayName.isNotBlank() else true,
                 ) { Text(stringResource(R.string.save)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupCreateSheet(
+    bots: List<LyfclawBot>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState()
+    val selected = remember { mutableStateListOf<String>() }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.group_chat_select_members), style = MaterialTheme.typography.titleLarge)
+
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(bots, key = { it.label }) { bot ->
+                    val isSelected = bot.label in selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (isSelected) selected.remove(bot.label) else selected.add(bot.label)
+                            }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Checkbox(checked = isSelected, onCheckedChange = null)
+                        Text(bot.displayName.ifBlank { bot.label })
+                    }
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                TextButton(
+                    onClick = { onConfirm(selected.toList()) },
+                    enabled = selected.size >= 2,
+                ) { Text(stringResource(R.string.group_chat_create)) }
             }
         }
     }

@@ -1804,4 +1804,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_bot_display_name">显示名称</string>
   <string name="assistant_page_bot_system_prompt">系统提示词（角色设定）</string>
   <string name="assistant_page_bot_runtime">Agent 运行时</string>
+  <string name="group_chat_new">新建群聊</string>
+  <string name="group_chat_title">群聊</string>
+  <string name="group_chat_members">群成员</string>
+  <string name="group_chat_select_members">选择群成员</string>
+  <string name="group_chat_create">创建群聊</string>
+  <string name="group_chat_need_two">至少选择 2 个 Bot</string>
+  <string name="group_chat_mention_hint">@ 某个成员可让它单独回复</string>
 </resources>

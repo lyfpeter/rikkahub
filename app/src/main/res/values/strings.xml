@@ -1809,4 +1809,11 @@
   <string name="assistant_page_bot_display_name">Display Name</string>
   <string name="assistant_page_bot_system_prompt">System Prompt</string>
   <string name="assistant_page_bot_runtime">Agent Runtime</string>
+  <string name="group_chat_new">New Group Chat</string>
+  <string name="group_chat_title">Group Chat</string>
+  <string name="group_chat_members">Members</string>
+  <string name="group_chat_select_members">Select members</string>
+  <string name="group_chat_create">Create Group</string>
+  <string name="group_chat_need_two">Select at least 2 bots</string>
+  <string name="group_chat_mention_hint">Mention a member to let only them reply</string>
 </resources>

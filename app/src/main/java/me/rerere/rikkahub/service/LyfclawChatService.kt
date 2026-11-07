@@ -40,6 +40,15 @@ data class LyfclawChatRequest(
 )
 
 @Serializable
+data class LyfclawGroupChatRequest(
+    val bot_labels: List<String>,
+    val targets: List<String> = emptyList(),
+    val text: String,
+    val conversation_id: String,
+    val web_search: Boolean = false,
+)
+
+@Serializable
 data class LyfclawBot(
     val label: String,
     @SerialName("display_name") val displayName: String = "",
@@ -222,7 +231,7 @@ class LyfclawChatService(
         botLabel: String,
         text: String,
         conversationId: String? = null,
-    ): Flow<LyfclawSseEvent> = callbackFlow {
+    ): Flow<LyfclawSseEvent> {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
@@ -239,6 +248,46 @@ class LyfclawChatService(
             .header("Accept", "text/event-stream")
             .build()
 
+        return streamSse(request)
+    }
+
+    /**
+     * 应用内多 Bot 群聊：一次请求由后端**串行**编排成员 bot，事件里多出 `speaker` 边界
+     * （每条回复前发一次，标明发言人），用于客户端为不同发言人分节点渲染。
+     *
+     * @param botLabels 群成员（全部）
+     * @param targets 本轮发言人（空 = 全员）
+     * @param conversationId 群裸 id（`grp-<uuid>`）
+     */
+    fun groupStream(
+        botLabels: List<String>,
+        targets: List<String>,
+        text: String,
+        conversationId: String,
+    ): Flow<LyfclawSseEvent> {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+
+        val requestBody = json.encodeToString(
+            LyfclawGroupChatRequest.serializer(),
+            LyfclawGroupChatRequest(botLabels, targets, text, conversationId),
+        ).toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/chat/group/stream")
+            .post(requestBody)
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "text/event-stream")
+            .build()
+
+        return streamSse(request)
+    }
+
+    /**
+     * 执行一个 SSE 请求并解析为 [LyfclawSseEvent] 流（`sendMessage` / `groupStream` 共用）。
+     */
+    private fun streamSse(request: Request): Flow<LyfclawSseEvent> = callbackFlow {
         val call = okHttpClient.newCall(request)
 
         call.enqueue(object : Callback {
@@ -417,6 +466,10 @@ class LyfclawChatService(
                     LyfclawSseEvent.NodeUpdate(nodeId, isGenerating, obj["node"]?.jsonObject)
                 }
                 "snapshot" -> LyfclawSseEvent.Snapshot(obj)
+                "speaker" -> LyfclawSseEvent.Speaker(
+                    botLabel = obj["bot_label"]?.jsonPrimitive?.contentOrNull ?: return null,
+                    displayName = obj["display_name"]?.jsonPrimitive?.contentOrNull ?: "",
+                )
                 "tool" -> {
                     val toolName = obj["tool_name"]?.jsonPrimitive?.contentOrNull ?: ""
                     val callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -452,6 +505,11 @@ sealed class LyfclawSseEvent {
     ) : LyfclawSseEvent()
     /** 全量快照：`payload.conversation.messageNodes[]` 为当前会话的消息树。 */
     data class Snapshot(val payload: JsonObject?) : LyfclawSseEvent()
+    /**
+     * 群聊发言人边界：其后到下一个 Speaker 之前的所有 delta/node_update 都属于该 bot。
+     * 客户端据此为每位发言人开一个新的 assistant 消息节点（标注 [displayName]）。
+     */
+    data class Speaker(val botLabel: String, val displayName: String = "") : LyfclawSseEvent()
     data class Done(
         val text: String,
         val conversationId: String?,

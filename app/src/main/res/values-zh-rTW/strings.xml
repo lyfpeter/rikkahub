@@ -1791,4 +1791,11 @@
   <string name="assistant_page_bot_display_name">顯示名稱</string>
   <string name="assistant_page_bot_system_prompt">系統提示詞（角色設定）</string>
   <string name="assistant_page_bot_runtime">Agent 執行時</string>
+  <string name="group_chat_new">新增群聊</string>
+  <string name="group_chat_title">群聊</string>
+  <string name="group_chat_members">群組成員</string>
+  <string name="group_chat_select_members">選擇群組成員</string>
+  <string name="group_chat_create">建立群聊</string>
+  <string name="group_chat_need_two">至少選擇 2 個 Bot</string>
+  <string name="group_chat_mention_hint">@ 某個成員可讓它單獨回覆</string>
 </resources>
