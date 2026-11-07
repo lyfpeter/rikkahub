@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.LyfclawBot
 import me.rerere.rikkahub.service.LyfclawChatService
+import me.rerere.rikkahub.service.LyfclawRuntime
 
 class AssistantVM(
     private val lyfclawChatService: LyfclawChatService,
@@ -31,8 +32,25 @@ class AssistantVM(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    /** 用户可选的 agent 运行时候选（后端白名单；失败时为空 → UI 退化为仅当前值）。 */
+    private val _runtimes = MutableStateFlow<List<LyfclawRuntime>>(emptyList())
+    val runtimes: StateFlow<List<LyfclawRuntime>> = _runtimes.asStateFlow()
+
     init {
         fetchBots()
+        fetchRuntimes()
+    }
+
+    fun fetchRuntimes() {
+        viewModelScope.launch {
+            runCatching {
+                lyfclawChatService.fetchRuntimes()
+            }.onSuccess { list ->
+                _runtimes.value = list
+            }.onFailure {
+                // 候选取不到不致命：下拉退化为仅显示当前值。
+            }
+        }
     }
 
     fun fetchBots() {
@@ -53,11 +71,11 @@ class AssistantVM(
         }
     }
 
-    fun createBot(displayName: String, systemPrompt: String, onSuccess: () -> Unit = {}) {
+    fun createBot(displayName: String, systemPrompt: String, runtime: String = "", onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             runCatching {
-                // 不传 label：标识由后端生成；仅让用户提供显示名 / 系统提示。
-                lyfclawChatService.createBot(displayName, systemPrompt)
+                // 不传 label：标识由后端生成；仅让用户提供显示名 / 系统提示 / 运行时。
+                lyfclawChatService.createBot(displayName, systemPrompt, runtime)
             }.onSuccess {
                 fetchBots()
                 onSuccess()
@@ -67,10 +85,10 @@ class AssistantVM(
         }
     }
 
-    fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?) {
+    fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?, runtime: String? = null) {
         viewModelScope.launch {
             runCatching {
-                lyfclawChatService.updateBot(botLabel, displayName, systemPrompt)
+                lyfclawChatService.updateBot(botLabel, displayName, systemPrompt, runtime)
             }.onSuccess {
                 fetchBots()
             }.onFailure { e ->

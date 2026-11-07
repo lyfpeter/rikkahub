@@ -40,10 +40,12 @@ import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.MoreVertical
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.service.LyfclawBot
+import me.rerere.rikkahub.service.LyfclawRuntime
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
+import me.rerere.ui.components.SelectTextField
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -56,6 +58,7 @@ fun AssistantPage(
     val currentBotLabel by vm.currentBotLabel.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
+    val runtimes by vm.runtimes.collectAsStateWithLifecycle()
 
     var showCreateSheet by remember { mutableStateOf(false) }
     var editingBot by remember { mutableStateOf<LyfclawBot?>(null) }
@@ -123,25 +126,29 @@ fun AssistantPage(
             title = stringResource(R.string.assistant_page_bot_new_title),
             initialDisplayName = "",
             initialSystemPrompt = "",
+            initialRuntime = "auto",
+            availableRuntimes = runtimes,
             isCreate = true,
             onDismiss = { showCreateSheet = false },
-            onSave = { displayName, systemPrompt ->
-                vm.createBot(displayName, systemPrompt)
+            onSave = { displayName, systemPrompt, runtime ->
+                vm.createBot(displayName, systemPrompt, runtime)
                 showCreateSheet = false
             },
         )
     }
 
-    // 编辑 Bot（重命名）
+    // 编辑 Bot（重命名 / 编辑角色 / 切换运行时）
     editingBot?.let { bot ->
         BotEditSheet(
             title = stringResource(R.string.assistant_page_bot_edit_title),
             initialDisplayName = bot.displayName,
             initialSystemPrompt = "",
+            initialRuntime = bot.runtime.ifBlank { "auto" },
+            availableRuntimes = runtimes,
             isCreate = false,
             onDismiss = { editingBot = null },
-            onSave = { displayName, systemPrompt ->
-                vm.updateBot(bot.label, displayName, systemPrompt.ifBlank { null })
+            onSave = { displayName, systemPrompt, runtime ->
+                vm.updateBot(bot.label, displayName, systemPrompt.ifBlank { null }, runtime)
                 editingBot = null
             },
         )
@@ -204,13 +211,26 @@ private fun BotEditSheet(
     title: String,
     initialDisplayName: String,
     initialSystemPrompt: String,
+    initialRuntime: String,
+    availableRuntimes: List<LyfclawRuntime>,
     isCreate: Boolean,
     onDismiss: () -> Unit,
-    onSave: (displayName: String, systemPrompt: String) -> Unit,
+    onSave: (displayName: String, systemPrompt: String, runtime: String) -> Unit,
 ) {
     var displayName by remember { mutableStateOf(initialDisplayName) }
     var systemPrompt by remember { mutableStateOf(initialSystemPrompt) }
+    var runtime by remember { mutableStateOf(initialRuntime) }
     val sheetState = rememberModalBottomSheetState()
+
+    // 候选 = 后端白名单；若当前值不在其中（如白名单收紧后的旧值），追加一项保底显示，
+    // 否则下拉会「显示不出当前值」。
+    val runtimeOptions = remember(availableRuntimes, initialRuntime) {
+        if (initialRuntime.isNotBlank() && availableRuntimes.none { it.id == initialRuntime }) {
+            availableRuntimes + LyfclawRuntime(id = initialRuntime, label = "$initialRuntime (unsupported)")
+        } else {
+            availableRuntimes
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -239,13 +259,23 @@ private fun BotEditSheet(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 300.dp),
             )
 
+            SelectTextField(
+                value = runtimeOptions.firstOrNull { it.id == runtime }?.label ?: runtime,
+                options = runtimeOptions,
+                onOptionSelected = { runtime = it.id },
+                readOnly = true,
+                label = { Text(stringResource(R.string.assistant_page_bot_runtime)) },
+                optionToString = { it.label },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             Row(
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 TextButton(
-                    onClick = { onSave(displayName.trim(), systemPrompt.trim()) },
+                    onClick = { onSave(displayName.trim(), systemPrompt.trim(), runtime) },
                     enabled = if (isCreate) displayName.isNotBlank() else true,
                 ) { Text(stringResource(R.string.save)) }
             }

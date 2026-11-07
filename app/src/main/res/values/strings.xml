@@ -1808,4 +1808,5 @@
   <string name="assistant_page_bot_retry">Retry</string>
   <string name="assistant_page_bot_display_name">Display Name</string>
   <string name="assistant_page_bot_system_prompt">System Prompt</string>
+  <string name="assistant_page_bot_runtime">Agent Runtime</string>
 </resources>

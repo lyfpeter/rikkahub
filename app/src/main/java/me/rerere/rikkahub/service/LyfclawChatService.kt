@@ -43,11 +43,24 @@ data class LyfclawChatRequest(
 data class LyfclawBot(
     val label: String,
     @SerialName("display_name") val displayName: String = "",
+    val runtime: String = "",
 )
 
 @Serializable
 data class LyfclawBotsResponse(
     val bots: List<LyfclawBot> = emptyList(),
+)
+
+/** 用户可选的一个 agent 运行时（后端白名单项）。id = AGENT_RUNTIME 取值。 */
+@Serializable
+data class LyfclawRuntime(
+    val id: String,
+    val label: String = "",
+)
+
+@Serializable
+data class LyfclawRuntimesResponse(
+    val runtimes: List<LyfclawRuntime> = emptyList(),
 )
 
 /**
@@ -72,11 +85,12 @@ class LyfclawChatService(
      * **不传 label**：标识由后端生成并统一管理，客户端只提供 display_name / system_prompt；
      * 响应里的 `bot.label` 才是后续请求要用的稳定标识。
      */
-    suspend fun createBot(displayName: String, systemPrompt: String): JsonObject = withContext(Dispatchers.IO) {
+    suspend fun createBot(displayName: String, systemPrompt: String, runtime: String = ""): JsonObject = withContext(Dispatchers.IO) {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
-        val body = """{"display_name":"${displayName.replace("\"","\\\"")}","system_prompt":"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}"}"""
+        val rtPart = if (runtime.isNotBlank()) ""","runtime":"${runtime.replace("\"","\\\"")}"""" else ""
+        val body = """{"display_name":"${displayName.replace("\"","\\\"")}","system_prompt":"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}"$rtPart}"""
         val request = Request.Builder()
             .url("$baseUrl/api/app/bots")
             .post(body.toRequestBody("application/json".toMediaType()))
@@ -90,7 +104,7 @@ class LyfclawChatService(
         }
     }
 
-    suspend fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?) = withContext(Dispatchers.IO) {
+    suspend fun updateBot(botLabel: String, displayName: String?, systemPrompt: String?, runtime: String? = null) = withContext(Dispatchers.IO) {
         val settings = settingsStore.settingsFlow.value
         val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
         val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
@@ -98,6 +112,8 @@ class LyfclawChatService(
         val parts = mutableListOf<String>()
         if (displayName != null) parts.add("\"display_name\":\"${displayName.replace("\"","\\\"")}\"")
         if (systemPrompt != null) parts.add("\"system_prompt\":\"${systemPrompt.replace("\"","\\\"").replace("\n","\\n")}\"")
+        // null = 不改运行时；""（空串）= 显式设为 auto。
+        if (runtime != null) parts.add("\"runtime\":\"${runtime.replace("\"","\\\"")}\"")
         val body = "{${parts.joinToString(",")}}"
         val request = Request.Builder()
             .url("$baseUrl/api/app/bots/$encoded")
@@ -168,6 +184,27 @@ class LyfclawChatService(
                 throw Exception("List bots failed: ${resp.code} $body")
             }
             json.decodeFromString(LyfclawBotsResponse.serializer(), body).bots
+        }
+    }
+
+    /** 拉取用户可选的 agent 运行时候选（GET /api/app/bots/runtimes，后端白名单）。 */
+    suspend fun fetchRuntimes(): List<LyfclawRuntime> = withContext(Dispatchers.IO) {
+        val settings = settingsStore.settingsFlow.value
+        val baseUrl = me.rerere.rikkahub.data.remote.normalizeLyfclawBaseUrl(settings.lyfclawBaseUrl)
+        val token = settings.lyfclawToken ?: throw IllegalStateException("Not logged in to lyfclaw")
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/app/bots/runtimes")
+            .get()
+            .header("Authorization", "Bearer $token")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw Exception("List runtimes failed: ${resp.code} $body")
+            }
+            json.decodeFromString(LyfclawRuntimesResponse.serializer(), body).runtimes
         }
     }
 
