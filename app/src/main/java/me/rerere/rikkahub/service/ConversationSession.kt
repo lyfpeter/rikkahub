@@ -239,10 +239,11 @@ class ConversationSession(
             messageQueue.state.value.messages.isNotEmpty()
 
     // 生成期间收到的 lyfclaw 推送暂存于此，生成结束后 drain 并重试 merge
-    val pendingLyfclawMerge = java.util.concurrent.ConcurrentLinkedQueue<Pair<String, UIMessage>>()
+    // 键是消息的 Unix 秒（与后端 createdAt 同单位），见 ChatService 的水位归一说明。
+    val pendingLyfclawMerge = java.util.concurrent.ConcurrentLinkedQueue<Pair<Double, UIMessage>>()
 
-    fun drainPendingLyfclawMerge(): List<Pair<String, UIMessage>> {
-        val drained = mutableListOf<Pair<String, UIMessage>>()
+    fun drainPendingLyfclawMerge(): List<Pair<Double, UIMessage>> {
+        val drained = mutableListOf<Pair<Double, UIMessage>>()
         while (true) {
             val item = pendingLyfclawMerge.poll() ?: break
             drained.add(item)

@@ -33,6 +33,7 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant as _toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -1415,14 +1416,14 @@ class ChatService(
      */
     private suspend fun persistLyfclawSession(session: ConversationSession, sessionId: String?, conversationId: String? = null) {
         val incarnation = session.incarnation
-        val now = nowIso()
+        val now = nowEpochStr()
         val prevSessionId = session.state.value.config?.lyfclawSessionId
         session.updateMetadata(
             transform = { conv ->
                 val config = conv.config ?: return@updateMetadata conv
                 conv.copy(config = config.copy(
                     lyfclawSessionId = sessionId ?: config.lyfclawSessionId,
-                    lyfclawSyncedAt = maxOf(config.lyfclawSyncedAt ?: "", now),
+                    lyfclawSyncedAt = maxEpoch(config.lyfclawSyncedAt, now),
                     lyfclawConversationId = conversationId ?: config.lyfclawConversationId,
                 ))
             },
@@ -1452,7 +1453,7 @@ class ChatService(
      */
     private suspend fun mergeLyfclawMessages(
         conversationId: Uuid,
-        candidates: List<Pair<String, UIMessage>>,
+        candidates: List<Pair<Double, UIMessage>>,
     ) {
         if (candidates.isEmpty()) return
         withLoadedSession(conversationId, createIfMissing = false) { session ->
@@ -1477,12 +1478,15 @@ class ChatService(
     private suspend fun doMergeLyfclawMessages(
         conversationId: Uuid,
         session: ConversationSession,
-        candidates: List<Pair<String, UIMessage>>,
+        candidates: List<Pair<Double, UIMessage>>,
     ) {
         val incarnation = session.incarnation
-        val watermark = session.state.value.config?.lyfclawSyncedAt
+        // 水位统一用「Unix 秒（Double）」，候选键也是 Unix 秒。**绝不按字符串比较**：
+        // 后端 createdAt 是 Unix 秒串（"1794037360.28"），本地是 ISO8601（"2026-11-07T…Z"），
+        // 混比会因首字符 '1'<'2' 把「后端更旧」误判成真，导致历史一条都并不进来。
+        val watermark = parseEpochSeconds(session.state.value.config?.lyfclawSyncedAt)
         val newest = candidates.maxOf { it.first }
-        if (watermark.isNullOrBlank()) {
+        if (watermark == null) {
             // 首次校准：检查 snapshot 中是否有比本地更新的消息
             val localLastAssistantTs = localLastAssistantCreatedAt(session)
             if (localLastAssistantTs != null) {
@@ -1491,15 +1495,15 @@ class ChatService(
                     transform = { conv ->
                         val config = conv.config ?: return@updateMetadata conv
                         if (toAdd.isEmpty()) {
-                            conv.copy(config = config.copy(lyfclawSyncedAt = newest))
+                            conv.copy(config = config.copy(lyfclawSyncedAt = epochStr(newest)))
                         } else {
                             conv.copy(
                                 messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
-                                config = config.copy(lyfclawSyncedAt = maxOf(newest, localLastAssistantTs)),
+                                config = config.copy(lyfclawSyncedAt = epochStr(maxOf(newest, localLastAssistantTs))),
                             )
                         }
                     },
-                    persist = if (candidates.any { it.first > localLastAssistantTs })
+                    persist = if (toAdd.isNotEmpty())
                         conversationRepo::updateConversation
                     else conversationRepo::updateConversationConfig,
                     expectedIncarnation = incarnation,
@@ -1509,7 +1513,7 @@ class ChatService(
                 session.updateMetadata(
                     transform = { conv ->
                         val config = conv.config ?: return@updateMetadata conv
-                        conv.copy(config = config.copy(lyfclawSyncedAt = newest))
+                        conv.copy(config = config.copy(lyfclawSyncedAt = epochStr(newest)))
                     },
                     persist = conversationRepo::updateConversationConfig,
                     expectedIncarnation = incarnation,
@@ -1524,7 +1528,7 @@ class ChatService(
                 val config = conv.config ?: return@updateMetadata conv
                 conv.copy(
                     messageNodes = conv.messageNodes + toAdd.map { it.second.toMessageNode() },
-                    config = config.copy(lyfclawSyncedAt = maxOf(watermark, newest)),
+                    config = config.copy(lyfclawSyncedAt = epochStr(maxOf(watermark, newest))),
                 )
             },
             persist = conversationRepo::updateConversation,
@@ -1533,33 +1537,25 @@ class ChatService(
     }
 
     /**
-     * 本地会话中最后一条 assistant 消息的 createdAt（秒精度 ISO8601），
+     * 本地会话中最后一条 assistant 消息的 createdAt（Unix 秒，Double），
      * 用于首次水位校准时判断是否需要追加离线积压消息。
-     * 截断到秒精度以匹配后端 createdAt 格式，避免毫秒精度差异导致比较错误。
      */
-    private fun localLastAssistantCreatedAt(session: ConversationSession): String? {
+    private fun localLastAssistantCreatedAt(session: ConversationSession): Double? {
         return session.state.value.messageNodes
             .flatMap { it.messages }
             .filter { it.role == MessageRole.ASSISTANT }
-            .maxOfOrNull {
-                val ts = it.createdAt
-                // 截断到秒精度，匹配后端 createdAt 格式（避免毫秒精度比较错误）
-                if (ts != null) {
-                    kotlinx.datetime.Instant.fromEpochSeconds(ts._toInstant(TimeZone.UTC).epochSeconds).toString()
-                } else ""
-            }
-            ?.takeIf { it.isNotBlank() }
+            .maxOfOrNull { it.createdAt._toInstant(TimeZone.UTC).toEpochMilliseconds() / 1000.0 }
     }
 
     /** 从全量快照 payload（`conversation.messageNodes[]`）里收集 assistant 消息候选。 */
-    private fun snapshotAssistantCandidates(payload: JsonObject?): List<Pair<String, UIMessage>> {
+    private fun snapshotAssistantCandidates(payload: JsonObject?): List<Pair<Double, UIMessage>> {
         val nodes = payload?.get("conversation")?.jsonObject?.get("messageNodes")?.jsonArray
             ?: return emptyList()
         return nodes.flatMap { nodeAssistantCandidates(it as? JsonObject) }
     }
 
-    /** 从一个节点（`{ messages: [...] }`）里收集 assistant 消息候选：`createdAt` 字符串 → 本地消息。 */
-    private fun nodeAssistantCandidates(node: JsonObject?): List<Pair<String, UIMessage>> {
+    /** 从一个节点（`{ messages: [...] }`）里收集 assistant 消息候选：`createdAt`（Unix 秒串）→ 本地消息。 */
+    private fun nodeAssistantCandidates(node: JsonObject?): List<Pair<Double, UIMessage>> {
         val messages = node?.get("messages")?.jsonArray ?: return emptyList()
         return messages.mapNotNull { el ->
             val msg = el as? JsonObject ?: return@mapNotNull null
@@ -1568,14 +1564,48 @@ class ChatService(
                 ?.mapNotNull { (it as? JsonObject)?.let(::mapLyfclawPart) }
                 ?: return@mapNotNull null
             if (parts.isEmpty()) return@mapNotNull null
-            val createdAt = msg["createdAt"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-            createdAt to UIMessage(id = Uuid.random(), role = MessageRole.ASSISTANT, parts = parts)
+            val epoch = parseEpochSeconds(msg["createdAt"]?.jsonPrimitive?.contentOrNull)
+                ?: return@mapNotNull null
+            // 把后端时间落进消息本体（否则默认成「现在」，排序/水位全乱）
+            val createdAt = kotlinx.datetime.Instant.fromEpochMilliseconds((epoch * 1000).toLong())
+                .toLocalDateTime(TimeZone.UTC)
+            epoch to UIMessage(
+                id = Uuid.random(), role = MessageRole.ASSISTANT, parts = parts, createdAt = createdAt,
+            )
         }
     }
 
-    /** 当前 UTC 时刻，秒精度 ISO8601（与后端 `createdAt` 同形，可逐字比较）。 */
-    private fun nowIso(): String =
-        Instant.fromEpochSeconds(Clock.System.now().epochSeconds).toString()
+    /** 当前 UTC 时刻的 Unix 秒字符串（与后端 `createdAt` 同形，可比）。 */
+    private fun nowEpochStr(): String =
+        epochStr(Clock.System.now().toEpochMilliseconds() / 1000.0)
+
+    /** Unix 秒（Double）→ 定点字符串（6 位小数，避免科学计数法，字典序与数值序一致）。 */
+    private fun epochStr(seconds: Double): String = String.format(Locale.US, "%.6f", seconds)
+
+    /**
+     * 把来源不一的时间串解析成 Unix 秒（Double）：
+     * 既认后端 `createdAt` 的 Unix 秒串（"1794037360.281821"），也认历史水位里残留的 ISO8601。
+     * 解析不了 → `null`。
+     */
+    private fun parseEpochSeconds(raw: String?): Double? {
+        val s = raw?.trim().orEmpty()
+        if (s.isEmpty()) return null
+        s.toDoubleOrNull()?.let { return it }
+        return runCatching {
+            kotlinx.datetime.Instant.parse(s).toEpochMilliseconds() / 1000.0
+        }.getOrNull()
+    }
+
+    /** 两个水位串（可空 / 可为旧 ISO 格式）取较大者，返回定点的 Unix 秒串。 */
+    private fun maxEpoch(a: String?, b: String?): String? {
+        val av = parseEpochSeconds(a)
+        val bv = parseEpochSeconds(b)
+        return when {
+            av == null -> b
+            bv == null -> a
+            else -> epochStr(maxOf(av, bv))
+        }
+    }
 
     // ---- 生成标题 ----
 
